@@ -20,7 +20,7 @@
 
 import numpy as np
 from scipy.sparse.linalg import spsolve
-from scipy.signal import argrelmax, savgol_filter
+from scipy.signal import argrelmax
 import matplotlib.pyplot as plt
 import utils.time_series as time_series
 
@@ -41,7 +41,7 @@ def timestep(x: np.ndarray, i: int, settings: Settings) -> np.ndarray:
     A = settings.A
     B = settings.B
     rhs = B.dot(temp)  # B*x
-    rhs[0] = settings.h_left[i]  # left boundary
+    rhs[0] = settings.h_left[i] + settings.forcing_noise[i]  # left boundary
     newx = spsolve(A, rhs)
     return newx
 
@@ -100,78 +100,32 @@ def simulate() -> None:
         complete_series[:, i] = x
         series_data[:, i] = x[settings.ilocs]
 
-    init_times = range(1, 11)
-
-    for t in init_times:
-        plt.plot(settings.x_h, complete_series[::2, t])
-    plt.plot([0.25 * settings.L] * 2, [0, 2], "--r")
+    indices = range(3, 13)
+    for i in indices:
+        level = complete_series[::2, i]
+        idx_last_max = argrelmax(level)[0][-1]
+        plt.plot(settings.x_h, level)
     plt.savefig("test.pdf")
 
-    smooth_complete_series = np.zeros((x.shape[0], len(ts)))
     plt.clf()
 
-    # Smooth data
-    for t in range(len(ts)):
-        smooth_complete_series[:, t] = savgol_filter(
-            complete_series[:, t], window_length=20, polyorder=3
-        )
+    vs = []
+    series = complete_series
+    for i in indices:
+        init_level = series[::2, i]
+        idx_last_max = argrelmax(init_level)[0][-1]
+        distance_1 = settings.x_h[idx_last_max]
+        time_1 = ts[i]
 
-    for t in [1, 2, 3]:
-        plt.plot(settings.x_h, smooth_complete_series[::2, t])
-    plt.plot([0.25 * settings.L] * 2, [0, 2], "--r")
-    plt.savefig("smooth_test.pdf")
+        init_level = series[::2, i + 1]
+        time_2 = ts[i + 1]
+        idx_last_max = argrelmax(init_level)[0][-1]
+        distance_2 = settings.x_h[idx_last_max]
+        v = (distance_2 - distance_1) / (time_2 - time_1)
+        vs.append(v)
 
-    idxs = [1, 2, 3, 4]
-    cs = []
-
-    init_level = smooth_complete_series[:, 4]
-    idx_last_max = argrelmax(init_level)[0][-1]
-    distance_1 = settings.x_h[idx_last_max]
-    time_1 = ts[4]
-
-    init_level = smooth_complete_series[:, 5]
-    time_2 = ts[5]
-    idx_last_max = argrelmax(init_level)[0][-1]
-    distance_2 = settings.x_h[idx_last_max]
-    d = (distance_2 - distance_1) / (time_2 - time_1)
-    time = 1
-    # for j in idxs:
-    #     idx = settings.ilocs[j]
-    #     xloc = settings.xlocs_waterlevel[j]
-
-    #     t_star = 0
-    #     for i in np.arange(4, len(ts)):
-    #         current_smooth_level = smooth_complete_series[:, i]
-    #         idx_last_max = argrelmax(current_smooth_level)[0][-1]
-    #         if idx_last_max > idx:
-    #             t_star = ts[i]
-    #             break
-    #     cs.append(xloc / t_star)
-
-    hs = smooth_complete_series[::2, :]
-    us = smooth_complete_series[1::2, :]
-
-    # cs_h = np.zeros((hs.shape[0] - 2, len(ts) - 2))
-    # for i, lx in enumerate(range(1, hs.shape[0] - 1)):
-    #     for j, lt in enumerate(range(1, len(ts) - 1)):
-    #         d2h_dt2 = (
-    #             hs[lx, lt - 1] - 2 * hs[lx, lt] + hs[lx, lt + 1]
-    #         ) / settings.dt**2
-    #         d2h_dx2 = (
-    #             hs[lx - 1, lt] - 2 * hs[lx, lt] + hs[lx + 1, lt]
-    #         ) / settings.dx**2
-    #         cs_h[i, j] = np.sqrt(d2h_dt2 / d2h_dx2)
-
-    # cs_u = np.zeros((us.shape[0] - 2, len(ts) - 2))
-    # for i, lx in enumerate(range(1, us.shape[0] - 1)):
-    #     for j, lt in enumerate(range(1, len(ts) - 1)):
-    #         d2u_dt2 = (
-    #             us[lx, lt - 1] - 2 * us[lx, lt] + us[lx, lt + 1]
-    #         ) / settings.dt**2
-    #         d2u_dx2 = (
-    #             us[lx - 1, lt] - 2 * us[lx, lt] + us[lx + 1, lt]
-    #         ) / settings.dx**2
-    #         cs_u[i, j] = np.sqrt(d2u_dt2 / d2u_dx2)
+    # plt.plot(indices, vs, "-b")
+    # plt.savefig("velo.pdf")
 
     # load observations
     (obs_times, obs_values) = time_series.read_series("tide_cadzand.txt")
@@ -188,8 +142,39 @@ def simulate() -> None:
 
     plot_series(settings.times, series_data, settings, observed_data)
 
+    # Question 3
+    rmses = []
+    biases = []
+    for i, _ in enumerate(settings.loc_names):
+        observations = observed_data[i, 1:]
+        estimations = series_data[i, :]
+        rmse = np.sqrt(np.square(np.subtract(observations, estimations)).mean())
+        bias = np.mean(estimations - observations)
+        rmses.append(rmse)
+        biases.append(bias)
+
+
+def question4() -> None:
+    N = 50
+    ensembles = []
+    seeds = np.random.random_integers(1, 1000, size=N)
+    for i, seed in enumerate(seeds):
+        settings = Settings(seed=seed, add_noise=True)
+        x, _ = settings.initialize()
+        ts = settings.ts[:]  # [:40]
+
+        series_data = np.zeros((len(settings.ilocs), len(ts)))
+        for i in tqdm(np.arange(1, len(ts))):
+            x = timestep(x, i, settings)
+            series_data[:, i] = x[settings.ilocs]
+        ensembles.append(series_data)
+        plt.plot(series_data[1, :])
+
+    plt.show()
+
 
 # main program
 if __name__ == "__main__":
-    simulate()
+    # simulate()
+    question4()
     # plt.show()

@@ -3,6 +3,7 @@ import numpy as np
 import utils.time_series as time_series
 from datetime import datetime, timedelta
 import scipy.sparse as sp
+from numpy.random import Generator
 
 
 class Settings:
@@ -12,7 +13,7 @@ class Settings:
     bound_datafile: str = "tide_cadzand.txt"
     names = ["Cadzand", "Vlissingen", "Terneuzen", "Hansweert", "Bath"]
 
-    def __init__(self, add_noise: bool = False) -> None:
+    def __init__(self, seed: int = 123, add_noise: bool = False) -> None:
         # Constants
         self.g: float = 9.81  # gravity
         self.D: float = 20.0  # depth
@@ -52,6 +53,7 @@ class Settings:
         self.h_left: np.ndarray = np.interp(self.ts, bound_t, bound_values)
 
         self.add_noise: bool = add_noise
+        self.generator: Generator = np.random.default_rng(seed)
 
         # Initialized later
         self.A: np.ndarray = np.zeros(0)
@@ -62,6 +64,8 @@ class Settings:
         self.xlocs_velocity: np.ndarray = np.zeros(0)
         self.ilocs: np.ndarray = np.zeros(0)
         self.loc_names: list[str] = []
+
+        self.forcing_noise: np.ndarray = np.zeros(self.ts.shape[0])
         self.__initialize_locs__()
 
     def __initialize_locs__(self) -> None:
@@ -94,6 +98,16 @@ class Settings:
         self.xlocs_velocity = xlocs_velocity
         self.ilocs = ilocs
         self.loc_names = loc_names
+
+        if self.add_noise:
+            sigma_noise = 0.0465
+            white_noise = np.random.randn(self.ts.shape[0]) * sigma_noise
+            ar_noise = np.zeros(self.ts.shape[0])
+            ar_noise[0] = 0.01
+            alpha = np.exp(-self.dt / self.t_f)
+            for i, _ in enumerate(self.ts[1:]):
+                ar_noise[i + 1] = alpha * ar_noise[i] + white_noise[i]
+            self.forcing_noise = ar_noise
 
     def initialize(self) -> tuple[np.ndarray, np.ndarray]:
         # return (h,u,t) at initial time
