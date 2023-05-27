@@ -18,8 +18,8 @@ class Settings:
         self.g: float = 9.81  # gravity
         self.D: float = 20.0  # depth
 
-        self.f: float = 0
-        # self.f: float = 1 / (0.06 * days_to_seconds)  # damping time scale
+        # self.f: float = 0
+        self.f: float = 1 / (0.06 * self.days_to_seconds)  # damping time scale
 
         self.L: float = 100.0e3  # length estuary
         self.n: int = 100  # number of cell
@@ -74,14 +74,9 @@ class Settings:
         dx = self.dx
         xlocs_waterlevel = np.array([0.0 * L, 0.25 * L, 0.5 * L, 0.75 * L, 0.99 * L])
         xlocs_velocity = np.array([0.0 * L, 0.25 * L, 0.5 * L, 0.75 * L])
-        ilocs = np.hstack(
-            (
-                np.round((xlocs_waterlevel) / dx) * 2,
-                np.round((xlocs_velocity - 0.5 * dx) / dx) * 2 + 1,
-            )
-        ).astype(
-            int
-        )  # indices of waterlevel locations in x
+        ilocs_waterlevel = np.round((xlocs_waterlevel) / dx) * 2
+        ilocs_velocity = np.round((xlocs_velocity - 0.5 * dx) / dx) * 2 + 1
+        ilocs = np.hstack((ilocs_waterlevel, ilocs_velocity)).astype(int)
         print(ilocs)
 
         loc_names = []
@@ -94,19 +89,21 @@ class Settings:
             loc_names.append(
                 "Velocity at x=%f km %s" % (0.001 * xlocs_velocity[i], self.names[i])
             )
+
         self.xlocs_waterlevel = xlocs_waterlevel
         self.xlocs_velocity = xlocs_velocity
         self.ilocs = ilocs
+        self.ilocs_waterlevel = ilocs_waterlevel
         self.loc_names = loc_names
 
+        self.alpha = np.exp(-self.dt / self.t_f)
+        self.sigma_noise = 0.0465
         if self.add_noise:
-            sigma_noise = 0.0465
-            white_noise = np.random.randn(self.ts.shape[0]) * sigma_noise
+            white_noise = np.random.randn(self.ts.shape[0]) * self.sigma_noise
             ar_noise = np.zeros(self.ts.shape[0])
             ar_noise[0] = 0.01
-            alpha = np.exp(-self.dt / self.t_f)
             for i, _ in enumerate(self.ts[1:]):
-                ar_noise[i + 1] = alpha * ar_noise[i] + white_noise[i]
+                ar_noise[i + 1] = self.alpha * ar_noise[i] + white_noise[i]
             self.forcing_noise = ar_noise
 
     def initialize(self) -> tuple[np.ndarray, np.ndarray]:
