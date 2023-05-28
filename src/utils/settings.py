@@ -63,8 +63,11 @@ class Settings:
         self.xlocs_waterlevel: np.ndarray = np.zeros(0)
         self.xlocs_velocity: np.ndarray = np.zeros(0)
         self.ilocs: np.ndarray = np.zeros(0)
+        self.ilocs_waterlevel: np.ndarray = np.zeros(0)
+        self.ilocs_velocity: np.ndarray = np.zeros(0)
         self.loc_names: list[str] = []
 
+        self.white_noise: np.ndarray = np.zeros(0)
         self.forcing_noise: np.ndarray = np.zeros(self.ts.shape[0])
         self.__initialize_locs__()
 
@@ -93,7 +96,8 @@ class Settings:
         self.xlocs_waterlevel = xlocs_waterlevel
         self.xlocs_velocity = xlocs_velocity
         self.ilocs = ilocs
-        self.ilocs_waterlevel = ilocs_waterlevel
+        self.ilocs_waterlevel = ilocs_waterlevel.astype(int)
+        self.ilocs_velocity = ilocs_velocity.astype(int)
         self.loc_names = loc_names
 
         self.alpha = np.exp(-self.dt / self.t_f)

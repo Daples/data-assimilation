@@ -1,10 +1,12 @@
 import os
-from typing import Any, Callable
+from typing import Any
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 from utils._typing import DataArray
 from utils.data_handler import DataHandler
+from utils.settings import Settings
 
 
 class Plotter:
@@ -57,6 +59,41 @@ class Plotter:
             os.mkdir(cls._folder)
 
         return os.path.join(cls._folder, path)
+
+    @classmethod
+    def plot_KF_results(
+        cls,
+        t: int,
+        estimations: DataArray,
+        covariances: list[np.ndarray],
+        observations: DataArray,
+        settings: Settings,
+    ) -> None:
+        """"""
+
+        cls.__clear__()
+        cls.__setup_config__()
+        estimations, observations = DataHandler.__cast_array__(
+            estimations, observations
+        )
+
+        fig, axs = plt.subplots(ncols=1, nrows=2)
+        xs = [settings.x_h, settings.x_u]
+        vs = ["h", "u"]
+        stds = np.sqrt(np.diag(covariances[t]))
+        for i, x in enumerate(xs):
+            s = stds[i:-1:2]
+            y = estimations[i:-1:2, t]
+            axs[i].plot(x, y, "b", label="KF")
+            if i == 0:
+                axs[i].scatter(
+                    settings.xlocs_waterlevel, observations[:, t], label="Observations"
+                )
+            axs[i].fill_between(x, (y - s), (y + s), color="b", alpha=0.2)
+            axs[i].legend()
+
+        # plt.savefig(add_folder(figs_folder, name), bbox_inches="tight")
+        plt.show()
 
     @classmethod
     def plot(

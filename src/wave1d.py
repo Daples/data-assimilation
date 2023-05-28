@@ -257,9 +257,8 @@ def question5() -> None:
     _R = lambda _: R.toarray()
 
     # Initial state
-    initial_state = 0.01 * np.ones((n_state, 1))
-    initial_covariance = 0.1 * np.eye(n_state)
-    initial_covariance[-1, -1] = 10
+    initial_state = 0 * np.ones((n_state, 1))
+    initial_covariance = 1 * np.eye(n_state)
 
     # Load observations
     (obs_times, obs_values) = time_series.read_series("tide_cadzand.txt")
@@ -274,7 +273,7 @@ def question5() -> None:
     (obs_times, obs_values) = time_series.read_series("tide_bath.txt")
     observed_data[4, :] = obs_values[:]
 
-    states, _ = kalman_filter(
+    states, covariances = kalman_filter(
         _M,
         _B,
         _H,
@@ -285,142 +284,63 @@ def question5() -> None:
         settings.h_left,
         observed_data,
     )
-
-    states_py, _ = kalman_filter_py(
-        _M,
-        _B,
-        _H,
-        _Q,
-        _R,
-        initial_state,
-        initial_covariance,
-        settings.h_left,
-        observed_data,
-    )
+    t = 3
+    Plotter.plot_KF_results(t, states, covariances, observed_data, settings)
 
     # Compare with simulations without noise ("truth?")
-    settings = Settings(add_noise=False)
-    x, _ = settings.initialize()
-    states_real, observations_real = simulate_real(settings)
+    # settings_real = Settings(add_noise=False)
+    # x, _ = settings_real.initialize()
+    # states_real, _ = simulate_real(settings_real)
 
-    k = 2
-    plt.plot(settings.ts, states[k, :], "r", label="State space")
-    plt.plot(settings.ts, states_real[k, :], "k", label="Simulation")
-    plt.show()
+    # k = 2
+    # plt.plot(settings.ts, states[k, :], "r", label="State space")
+    # plt.plot(settings.ts, states_real[k, :], "k", label="Simulation")
+    # plt.show()
 
-    t = 2
-    Plotter.__clear__()
-    plt.plot(settings.x_h, states[:-1:2, t], "r", label="State space")
-    plt.plot(settings.x_h, states_real[::2, t], "k", label="Simulation")
-    plt.show()
+    # t = 2
+    # Plotter.__clear__()
+    # plt.plot(settings.x_h, states[:-1:2, t], "r", label="State space")
+    # plt.plot(settings.x_h, states_real[::2, t], "k", label="Simulation")
+    # plt.show()
 
-    # Verify noise process
-    # _, axs = plt.subplots(nrows=2, ncols=2)
+    # # Verify noise process
+    # _, axs = plt.subplots(nrows=1, ncols=2, figsize=(15, 5))
     # noisy_boundary = cast(np.ndarray, settings.h_left + settings.forcing_noise)
-    # axs[0, 0].plot(
+    # axs[0].plot(
     #     settings.ts,
     #     settings.h_left,
-    #     "r",
+    #     "k",
     #     label="Real boundary",
     # )
-    # axs[0, 0].plot(
+    # axs[0].plot(
     #     settings.ts,
     #     noisy_boundary,
-    #     "k",
+    #     "b",
     #     label="Noisy boundary",
     # )
-    # axs[0, 0].set_xlabel("$t$")
-    # axs[0, 0].set_ylabel("h_left")
-    # axs[0, 0].legend()
-    # axs[0, 0].set_title("Input boundaries")
+    # axs[0].set_xlabel("$t$")
+    # axs[0].set_ylabel("h_left")
+    # axs[0].legend()
+    # axs[0].set_title("Input boundaries")
 
-    # axs[0, 1].plot(
-    #     settings.ts,
-    #     noisy_boundary - states[0, :],
-    #     color="r",
-    #     label="AR(1) KF",
-    # )
-    # axs[0, 1].plot(
-    #     settings.ts,
-    #     noisy_boundary - states_py[0, :],
-    #     color="b",
-    #     label="AR(1) KFPy",
-    # )
-    # axs[0, 1].set_xlabel("$t$")
-    # axs[0, 1].set_ylabel("N(k)")
-    # axs[0, 1].legend()
-    # axs[0, 1].set_title("Estimated AR(1)")
-
-    # axs[1, 0].plot(
+    # axs[1].plot(
     #     settings.ts,
     #     states[0, :],
     #     color="r",
-    #     label="Estimated boundary?",
+    #     label="Estimated boundary",
     # )
-    # axs[1, 0].plot(
+    # axs[1].plot(
     #     settings.ts,
     #     noisy_boundary,
     #     color="k",
     #     label="Noisy boundary",
     # )
-    # axs[1, 0].set_xlabel("$t$")
-    # axs[1, 0].set_ylabel("h_left + AR(1)")
-    # axs[1, 0].legend()
-    # axs[1, 0].set_title("Estimated boundary (OwnKF)")
-
-    # axs[1, 1].plot(
-    #     settings.ts,
-    #     states_py[0, :],
-    #     color="b",
-    #     label="Estimated boundary (KFPy)",
-    # )
-    # axs[1, 1].plot(
-    #     settings.ts,
-    #     noisy_boundary,
-    #     color="k",
-    #     label="Noisy boundary",
-    # )
-    # axs[1, 1].set_xlabel("$t$")
-    # axs[1, 1].set_ylabel("h_left + AR(1)")
-    # axs[1, 1].legend()
-    # axs[1, 1].set_title("Estimated boundary (KFpy)")
+    # axs[1].set_xlabel("$t$")
+    # axs[1].set_ylabel("h_left + AR(1)")
+    # axs[1].legend()
+    # axs[1].set_title("Estimated boundary (KF)")
 
     # plt.show()
-
-    # Plot KF(py) state estimations ts times
-    ts = [2, 4, 10, 20]
-    Plotter.__clear__()
-    for t in ts:
-        fig = plt.figure()
-        kwargs = {"label": "Own", "color": "r"}
-        axs = plot_state(fig, states[:-1, t], t, settings, kwargs=kwargs)
-
-        kwargs = {"label": "Py", "color": "k"}
-        plot_state(
-            fig,
-            states_py[:-1, t],
-            t,
-            settings,
-            kwargs=kwargs,
-            clear=False,
-            axs=axs,
-            legend=True,
-        )
-        plt.show()
-
-    # Plotter.__clear__()
-
-    ## Plot time series estimations at locations x[ks]
-    # ks = [2, 10, 40]
-    # cut = 16
-    # for k in ks:
-    #     kwargs = {"label": "Own", "color": "r"}
-    #     axs = plt.plot(states[k, :cut], **kwargs)
-
-    #     kwargs = {"label": "Py", "color": "k"}
-    #     plt.plot(states_py[k, :cut], **kwargs)
-    #     plt.legend()
-    #     plt.show()
 
     ## Plot KF estimations at observation locations
     # for j, station_name in enumerate(settings.names):
