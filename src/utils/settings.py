@@ -97,13 +97,15 @@ class Settings:
         self.loc_names = loc_names
 
         self.alpha = np.exp(-self.dt / self.t_f)
-        self.sigma_noise = 0.0465
+        self.sigma_noise = 0
+        self.white_noise = np.random.randn(self.ts.shape[0]) * self.sigma_noise
         if self.add_noise:
-            white_noise = np.random.randn(self.ts.shape[0]) * self.sigma_noise
+            self.sigma_noise = 0.0465
+            self.white_noise = np.random.randn(self.ts.shape[0]) * self.sigma_noise
             ar_noise = np.zeros(self.ts.shape[0])
-            ar_noise[0] = 0.01
+            ar_noise[0] = 0.0
             for i, _ in enumerate(self.ts[1:]):
-                ar_noise[i + 1] = self.alpha * ar_noise[i] + white_noise[i]
+                ar_noise[i + 1] = self.alpha * ar_noise[i] + self.white_noise[i]
             self.forcing_noise = ar_noise
 
     def initialize(self) -> tuple[np.ndarray, np.ndarray]:

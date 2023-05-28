@@ -1,7 +1,49 @@
 import numpy as np
-from typing import Any
+from typing import cast
 
 from utils._typing import DynamicMatrix
+from filterpy.kalman import KalmanFilter
+
+
+def kalman_filter_py(
+    M: DynamicMatrix,
+    B: DynamicMatrix,
+    H: DynamicMatrix,
+    Q: DynamicMatrix,
+    R: DynamicMatrix,
+    initial_state: np.ndarray,
+    initial_covariance: np.ndarray,
+    input_vector: np.ndarray,
+    measurements: np.ndarray,
+) -> tuple[np.ndarray, list[np.ndarray]]:
+    """"""
+
+    n_x = M(0).shape[0]
+    n_u = B(0).shape[1]
+    n_z = H(0).shape[0]
+    kf = KalmanFilter(dim_x=n_x, dim_u=n_u, dim_z=n_z)
+
+    kf.x = initial_state
+    kf.F = cast(np.ndarray, M(0))
+    kf.B = B(0)  # type:ignore
+    kf.H = cast(np.ndarray, H(0))
+    kf.P = initial_covariance
+    kf.R = cast(np.ndarray, R(0))
+    kf.Q = cast(np.ndarray, Q(0))
+
+    obs_time = measurements.shape[1] - 1
+    estimated_states = np.zeros((n_x, obs_time))
+    estimated_covariances = []
+    for k in range(obs_time):
+        u = input_vector[k].reshape((n_u, 1))
+        z = measurements[:, k].reshape((n_z, 1))
+        kf.predict(u=u)
+        kf.update(z)
+
+        estimated_covariances.append(kf.P)
+        estimated_states[:, k] = kf.x.squeeze()
+
+    return estimated_states, estimated_covariances
 
 
 def kalman_filter(
