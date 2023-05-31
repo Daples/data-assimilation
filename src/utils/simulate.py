@@ -2,6 +2,7 @@ import numpy as np
 from utils._typing import DynamicMatrix
 from utils.settings import Settings
 from scipy.sparse.linalg import spsolve
+from utils.plotter import Plotter
 from tqdm import tqdm
 
 
@@ -16,18 +17,21 @@ def timestep(x: np.ndarray, i: int, settings: Settings) -> np.ndarray:
     return newx
 
 
-def simulate_real(settings: Settings) -> tuple[np.ndarray, np.ndarray]:
+def simulate_real(
+    settings: Settings, plot: bool = False, prefix: str = "ffig_map"
+) -> tuple[np.ndarray, np.ndarray]:
     x, _ = settings.initialize()
-    ts = settings.ts[:]  # [:40]
+    ts = settings.ts[:]
 
-    series_data = np.zeros((len(settings.ilocs), len(ts)))
+    observation_series = np.zeros((len(settings.ilocs), len(ts)))
     complete_series = np.zeros((x.shape[0], len(ts)))
     for i in tqdm(np.arange(1, len(ts))):
         x = timestep(x, i, settings)
-        # plot_state(fig, x, i, settings)
+        if plot:
+            Plotter.plot_state(x, i, settings, name=prefix)
         complete_series[:, i] = x
-        series_data[:, i] = x[settings.ilocs]
-    return complete_series, series_data
+        observation_series[:, i] = x[settings.ilocs]
+    return complete_series, observation_series
 
 
 def forward(

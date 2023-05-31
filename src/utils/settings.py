@@ -11,15 +11,23 @@ class Settings:
     hours_to_seconds: float = 60.0 * 60.0
     days_to_seconds: float = 24.0 * 60.0 * 60.0
     bound_datafile: str = "tide_cadzand.txt"
+    km_to_m: int = 1000
     names = ["Cadzand", "Vlissingen", "Terneuzen", "Hansweert", "Bath"]
 
-    def __init__(self, seed: int = 123, add_noise: bool = False) -> None:
+    def __init__(
+        self,
+        seed: int = 123,
+        add_noise: bool = False,
+        damping_scale: float | None = None,
+    ) -> None:
         # Constants
         self.g: float = 9.81  # gravity
         self.D: float = 20.0  # depth
 
-        # self.f: float = 0
-        self.f: float = 1 / (0.06 * self.days_to_seconds)  # damping time scale
+        if damping_scale is None:
+            self.f: float = 1 / (0.06 * self.days_to_seconds)  # damping time scale
+        else:
+            self.f: float = damping_scale
 
         self.L: float = 100.0e3  # length estuary
         self.n: int = 100  # number of cell
@@ -29,6 +37,8 @@ class Settings:
         self.dx: float = self.L / (self.n + 0.5)
         self.x_h: np.ndarray = np.linspace(0, self.L - self.dx, self.n)
         self.x_u: np.ndarray = self.x_h + 0.5
+        self.x_h_km: np.ndarray = self.x_h / self.km_to_m
+        self.x_u_km: np.ndarray = self.x_u / self.km_to_m
 
         # Initial conditions
         self.h_0: np.ndarray = np.zeros(self.n)
@@ -38,7 +48,7 @@ class Settings:
         self.t_f: float = 2.0 * self.days_to_seconds  # enf of simulation
         self.dt: float = 10.0 * self.minutes_to_seconds
         self.ref_time: datetime = dtp.parse("201312050000")  # times in secs relative
-        self.ts = (
+        self.ts: np.ndarray = (
             self.dt * np.arange(np.round(self.t_f / self.dt)) + self.dt
         )  # MVL moved times to end of each timestep.
 
@@ -88,10 +98,10 @@ class Settings:
                 "Waterlevel at x=%f km %s"
                 % (0.001 * xlocs_waterlevel[i], self.names[i])
             )
-        for i in range(len(xlocs_velocity)):
-            loc_names.append(
-                "Velocity at x=%f km %s" % (0.001 * xlocs_velocity[i], self.names[i])
-            )
+        # for i in range(len(xlocs_velocity)):
+        #     loc_names.append(
+        #         "Velocity at x=%f km %s" % (0.001 * xlocs_velocity[i], self.names[i])
+        #     )
 
         self.xlocs_waterlevel = xlocs_waterlevel
         self.xlocs_velocity = xlocs_velocity
