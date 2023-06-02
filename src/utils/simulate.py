@@ -44,6 +44,7 @@ def forward(
     input_vector: np.ndarray,
     n_steps: int,
     ws: np.ndarray | None = None,
+    deterministic: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Returns (states, observations) for n_steps ahead (steps state vectors
     including the initial condition)"""
@@ -54,14 +55,18 @@ def forward(
     observations = np.zeros((n_z, n_steps))
 
     # Noise handles
+    if deterministic:
+        noise = lambda n, S: np.zeros(n)
+    else:
+        noise = lambda n, S: np.random.multivariate_normal(np.zeros(n), S)
+
     if ws is None:
-        w = lambda t: np.random.multivariate_normal(np.zeros(n_x), Q(t - 1)).reshape(
-            (n_x, 1)
-        )
+        w = lambda t: noise(n_x, Q(t - 1)).reshape((n_x, 1))
     else:
         aux = np.zeros((n_x - 1, 1))
         w = lambda t: np.vstack((aux, ws[t]))
-    v = lambda t: np.random.multivariate_normal(np.zeros(n_z), R(t)).reshape((n_z, 1))
+
+    v = lambda t: noise(n_z, Q(t)).reshape((n_z, 1))
 
     # Initial states
     states[:, 0] = initial_state.squeeze()

@@ -11,6 +11,7 @@ from utils._typing import DataArray
 import utils.time_series as time_series
 from utils.data_handler import DataHandler
 from utils.settings import Settings
+from utils import index_arrays
 
 
 class Plotter:
@@ -129,6 +130,8 @@ class Plotter:
         real: DataArray | None = None,
         is_ensemble: bool = False,
         show: bool = False,
+        shift: int = 0,
+        forecast: tuple[int, np.ndarray] | None = None,
     ) -> None:
         """It plots the estimated state vector after Kalman filtering at time t.
 
@@ -152,6 +155,11 @@ class Plotter:
             Whether to show the figures or not. Default: False
         is_ensemble: bool, optional
             If it corresponds to an ensemble Kalman filter. Default: False
+        shift: int, optional
+            It shifts the stations if needed (exlude the first `shift` stations).
+            Default: 0
+        forecast: tuple[int, numpy.ndarray] | None, optional
+            The tuple of the cut index and the forecasted state. Default = None
         """
 
         cls.__clear__()
@@ -160,11 +168,20 @@ class Plotter:
             estimations, observations
         )
 
+        cut_index = len(settings.times) + 1
+        forecast_state = np.zeros(0)
+        if forecast is not None:
+            cut_index, forecast_state = forecast
+
+        real_state = np.zeros(0)
+        if real is not None:
+            real_state = DataHandler.__cast_array__(real)[0]
+
         measurement_point = False
         output_index = 0
-        if i in settings.ilocs_waterlevel:
+        if i in settings.ilocs_waterlevel[shift:]:
             measurement_point = True
-            output_index = np.where(settings.ilocs_waterlevel == i)[0][0]
+            output_index = np.where(settings.ilocs_waterlevel[shift:] == i)[0][0]
 
         _, ax = plt.subplots(ncols=1, nrows=1, figsize=cls.figsize_standard)
         stds = list(map(lambda cov: np.sqrt(cov[i, i]), covariances))
@@ -173,26 +190,45 @@ class Plotter:
         s = stds
         y = estimations[i, :]
 
+        x, obs = index_arrays(  # type: ignore
+            x,
+            observations[output_index, :-1],
+        )
+
+        x_estimation = x
+        if forecast is not None:
+            x_forecast = x[cut_index:]
+            y_forecast = forecast_state[i, :]
+            ax.plot(x_forecast, y_forecast, "k", label="Forecast")
+            x_estimation = x[:cut_index]
+
+        ax.fill_between(x_estimation, (y - s), (y + s), color="b", alpha=0.2, zorder=-1)  # type: ignore
         label = "KF"
         if is_ensemble:
             label = "EnKF"
-        ax.plot(x, y, "b", label=label, zorder=3)
+
+        # Plot filter estimation
+        ax.plot(x_estimation, y, "b", label=label, zorder=3)
+
+        # Plot actual observations
         if measurement_point:
             ax.plot(
-                settings.times,
-                observations[output_index, :-1],
+                x,
+                obs,
                 "o",
                 markevery=1,
-                markersize=1.75,
+                markersize=2,
                 color="red",
                 linewidth=1,
                 label="Observations",
                 zorder=2,
             )
-        ax.fill_between(x, (y - s), (y + s), color="b", alpha=0.2, zorder=-1)  # type: ignore
+
+        # Plot reference data (deterministic simulation in our case)
         if real is not None:
-            y = cast(np.ndarray, real)[i, :]
-            ax.plot(x, y, "k", label="Deterministic", alpha=0.5, zorder=1)
+            x, y_real = index_arrays(x, real_state[i, :])  # type: ignore
+            ax.plot(x, y_real, "k", label="Deterministic", alpha=0.5, zorder=1)
+
         ax.set_xlabel(cls.t_label)
         ax.set_ylabel(variable_label)
 
@@ -217,6 +253,8 @@ class Plotter:
         real: DataArray | None = None,
         show: bool = False,
         is_ensemble: bool = False,
+        stations_shift: int = 0,
+        forecast: tuple[int, np.ndarray] | None = None,
     ) -> None:
         """It plots the estimated state vector after Kalman filtering at time t.
 
@@ -238,6 +276,11 @@ class Plotter:
             Whether to show the figures or not. Default: False
         is_ensemble: bool, optional
             If it corresponds to an ensemble Kalman filter. Default: False
+        stations_shift: int, optional
+            It shifts the stations if needed (exlude the first `shift` stations).
+            Default: 0
+        forecast: tuple[int, numpy.ndarray] | None, optional
+            The tuple of the cut index and the forecasted state. Default = None
         """
 
         cls.__clear__()
@@ -254,18 +297,34 @@ class Plotter:
         if is_ensemble:
             label = "EnKF"
         for i, x in enumerate(xs):
-            s = stds[i:-1:2]
-            y = estimations[i:-1:2, t]
-            axs[i].plot(x, y, "b", label=label)
+            # Plot estimation/forecast
+            if forecast is None:
+                s = stds[i:-1:2]
+                y = estimations[i:-1:2, t]
+                axs[i].plot(x, y, "b", label=label)
+
+                # Plot confidence bands
+                axs[i].fill_between(x, (y - s), (y + s), color="b", alpha=0.2)
+            else:
+                x_estimation = x[:cut_index]
+                x_forecast = x[:cut_index]
+                y = estimations[i:cut_index:2, t]
+                axs[i].plot(x_estimation, y, "b", label=label)
+                axs[i].plot(x_forecast, forecast_state, "r", label="Forecast")
+
+            # Plot observations
             if i == 0:
                 axs[i].scatter(
-                    settings.xlocs_waterlevel / 1000,
+                    settings.xlocs_waterlevel[stations_shift:] / 1000,
                     observations[:, t],
-                    c="b",
-                    marker="x",
+                    c="r",
+                    s=10,
+                    marker="o",
                     label="Observations",
+                    zorder=3,
                 )
-            axs[i].fill_between(x, (y - s), (y + s), color="b", alpha=0.2)
+
+            # Plot reference solution (real/deterministic solution)
             if real is not None:
                 y = cast(np.ndarray, real)[i::2, t]
                 axs[i].plot(x, y, "k", label="Deterministic", alpha=0.6)
@@ -446,7 +505,6 @@ class Plotter:
         ax.set_xlabel(cls.x_label)
         ax.set_ylabel(cls.h_label)
         cls.grid(ax)
-        cls.date_axis(ax)
 
         plt.savefig(cls.add_folder("argmaxs.pdf"), bbox_inches="tight")
 

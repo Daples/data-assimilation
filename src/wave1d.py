@@ -26,12 +26,12 @@ import utils.time_series as time_series
 import scipy.sparse as sp
 
 from utils.plotter import Plotter
-from utils.simulate import simulate_real
+from utils.simulate import simulate_real, forward
 from tqdm import tqdm
 
 from utils.settings import Settings
 from filtering.kalman import kalman_filter
-from filtering.ensemble_kalman import ensemble_kalman_filter, ensemble_kalman_filter_py
+from filtering.ensemble_kalman import ensemble_kalman_filter, ensemble_kalman_filter_st
 
 hours_to_seconds = 60.0 * 60.0
 days_to_seconds = 24.0 * 60.0 * 60.0
@@ -193,14 +193,14 @@ def question5() -> None:
     states_real, _ = simulate_real(settings_real)
 
     times = range(len(settings.ts))
-    # times = [5, 50]
+    times = [5, 50]
     for t in tqdm(times):
         Plotter.plot_KF_states(
-            t, states, covariances, observed_data, settings, real=states_real
+            t, states, covariances, observed_data, settings, real=states_real, show=True
         )
 
-    # indices = [0, 40, 50, 51]
-    indices = np.arange(states.shape[0] - 1).tolist()
+    indices = [0, 40, 50, 51]
+    # indices = np.arange(states.shape[0] - 1).tolist()
     for i in tqdm(indices):
         if i % 2 == 0:
             aux = str(int(i / 2))
@@ -216,6 +216,7 @@ def question5() -> None:
             settings,
             variable_name,
             real=states_real,
+            show=True,
         )
 
 
@@ -246,7 +247,7 @@ def question6() -> None:
     H = csr_array((n_stations, n_state), dtype=np.int8)
     aux = np.arange(n_stations)
     H[aux, settings.ilocs_waterlevel] = 1
-    R = 5 * sp.eye(n_stations)
+    R = 0.1 * sp.eye(n_stations)
     Q = settings.sigma_noise**2 * G @ G.T
 
     # Create handles
@@ -273,7 +274,7 @@ def question6() -> None:
     (obs_times, obs_values) = time_series.read_series("tide_bath.txt")
     observed_data[4, :] = obs_values[:]
 
-    ensemble_size = 250
+    ensemble_size = 50
     states, covariances = ensemble_kalman_filter(
         _M,
         _B,
@@ -359,7 +360,7 @@ def question7() -> None:
     H = csr_array((n_stations, n_state), dtype=np.int8)
     aux = np.arange(n_stations)
     H[aux, settings.ilocs_waterlevel] = 1
-    R = 5 * sp.eye(n_stations)
+    R = 0.5 * sp.eye(n_stations, format="csr")
     Q = settings.sigma_noise**2 * G @ G.T
 
     # Create handles
@@ -371,7 +372,7 @@ def question7() -> None:
 
     # Initial state
     initial_state = 0 * np.ones((n_state, 1))
-    initial_covariance = np.eye(n_state)
+    initial_covariance = 0.01 * np.eye(n_state)
 
     ensemble_size = 500
     states, covariances = ensemble_kalman_filter(
@@ -387,8 +388,9 @@ def question7() -> None:
         ensemble_size,
     )
 
-    # times = range(len(settings.ts))
-    times = [5, 50]
+    times = range(len(settings.ts))
+    # times = [5, 50]
+    times = []
     for t in tqdm(times):
         Plotter.plot_KF_states(
             t,
@@ -423,6 +425,338 @@ def question7() -> None:
         )
 
 
+def question8() -> None:
+    """"""
+
+    settings = Settings(add_noise=True)
+    settings.initialize()
+    n_stations = len(settings.names)
+
+    # Construct standard system notation
+    tilde_A = settings.A
+    tilde_B = settings.B
+    A = bmat([[tilde_A, None], [None, 1]])
+    aux = np.zeros((tilde_B.shape[0], 1))
+    aux[0] = 1
+    B_rhs = bmat([[tilde_B, aux], [None, settings.alpha]])
+    n_state = A.shape[0]
+
+    C = csr_array((n_state, 1), dtype=np.int8)
+    C[0, 0] = 1
+    D = csr_array((n_state, 1), dtype=np.int8)
+    D[-1, 0] = 1
+
+    inv_A = inv(A)
+    M = inv_A @ B_rhs
+    B = inv_A @ C
+    G = inv_A @ D
+
+    H = csr_array((n_stations, n_state), dtype=np.int8)
+    aux = np.arange(n_stations)
+    H[aux, settings.ilocs_waterlevel] = 1
+    R = 5 * sp.eye(n_stations)
+    Q = settings.sigma_noise**2 * G @ G.T
+
+    # Create handles
+    _M = lambda _: M.toarray()
+    _B = lambda _: B.toarray()
+    _H = lambda _: H.toarray()
+    _Q = lambda _: Q.toarray()
+    _R = lambda _: R.toarray()
+
+    # Initial state
+    initial_state = 2 * np.ones((n_state, 1))
+    initial_covariance = np.eye(n_state)
+
+    # Load observations
+    (obs_times, obs_values) = time_series.read_series("tide_cadzand.txt")
+    observed_data = np.zeros((len(settings.ilocs_waterlevel), len(obs_times)))
+    observed_data[0, :] = obs_values[:]
+    (obs_times, obs_values) = time_series.read_series("tide_vlissingen.txt")
+    observed_data[1, :] = obs_values[:]
+    (obs_times, obs_values) = time_series.read_series("tide_terneuzen.txt")
+    observed_data[2, :] = obs_values[:]
+    (obs_times, obs_values) = time_series.read_series("tide_hansweert.txt")
+    observed_data[3, :] = obs_values[:]
+    (obs_times, obs_values) = time_series.read_series("tide_bath.txt")
+    observed_data[4, :] = obs_values[:]
+
+    states, covariances = kalman_filter(
+        _M,
+        _B,
+        _H,
+        _Q,
+        _R,
+        initial_state,
+        initial_covariance,
+        settings.h_left,
+        observed_data,
+    )
+
+    # Simulations without noise ("truth"?)
+    settings_real = Settings(add_noise=False)
+    settings_real.initialize()
+    states_real, _ = simulate_real(settings_real)
+
+    # times = range(len(settings.ts))
+    times = [5, 50]
+    for t in tqdm(times):
+        Plotter.plot_KF_states(
+            t,
+            states,
+            covariances,
+            observed_data,
+            settings,
+            real=states_real,
+            show=True,
+        )
+
+    indices = [0, 40, 50, 51]
+    # indices = np.arange(states.shape[0] - 1).tolist()
+    for i in tqdm(indices):
+        if i % 2 == 0:
+            aux = str(int(i / 2))
+            variable_name = "$h_{{" + aux + "}} (\mathrm{m})$"
+        else:
+            aux = str(int((i - 1) / 2))
+            variable_name = "$u_{{" + aux + "}}\ (\mathrm{m/s})$"
+        Plotter.plot_KF_time(
+            i,
+            states,
+            covariances,
+            observed_data,
+            settings,
+            variable_name,
+            real=states_real,
+            show=True,
+        )
+
+
+def question9() -> None:
+    """"""
+
+    settings = Settings(add_noise=True)
+    settings.initialize()
+
+    # Remove one (Cadzand) station
+    n_stations = len(settings.names) - 1
+
+    # Construct standard system notation
+    tilde_A = settings.A
+    tilde_B = settings.B
+    A = bmat([[tilde_A, None], [None, 1]])
+    aux = np.zeros((tilde_B.shape[0], 1))
+    aux[0] = 1
+    B_rhs = bmat([[tilde_B, aux], [None, settings.alpha]])
+    n_state = A.shape[0]
+
+    C = csr_array((n_state, 1), dtype=np.int8)
+    C[0, 0] = 1
+    D = csr_array((n_state, 1), dtype=np.int8)
+    D[-1, 0] = 1
+
+    inv_A = inv(A)
+    M = inv_A @ B_rhs
+    B = inv_A @ C
+    G = inv_A @ D
+
+    H = csr_array((n_stations, n_state), dtype=np.int8)
+    aux = np.arange(n_stations)
+    H[aux, settings.ilocs_waterlevel[1:]] = 1
+    R = 5 * sp.eye(n_stations)
+    Q = settings.sigma_noise**2 * G @ G.T
+
+    # Create handles
+    _M = lambda _: M.toarray()
+    _B = lambda _: B.toarray()
+    _H = lambda _: H.toarray()
+    _Q = lambda _: Q.toarray()
+    _R = lambda _: R.toarray()
+
+    # Initial state
+    initial_state = 0 * np.ones((n_state, 1))
+    initial_covariance = np.eye(n_state)
+
+    # Load observations
+    (obs_times, obs_values) = time_series.read_series("waterlevel_vlissingen.txt")
+    observed_data = np.zeros((len(settings.ilocs_waterlevel[1:]), len(obs_times)))
+    observed_data[0, :] = obs_values[:]
+    (obs_times, obs_values) = time_series.read_series("waterlevel_terneuzen.txt")
+    observed_data[1, :] = obs_values[:]
+    (obs_times, obs_values) = time_series.read_series("waterlevel_hansweert.txt")
+    observed_data[2, :] = obs_values[:]
+    (obs_times, obs_values) = time_series.read_series("waterlevel_bath.txt")
+    observed_data[3, :] = obs_values[:]
+
+    states, covariances = kalman_filter(
+        _M,
+        _B,
+        _H,
+        _Q,
+        _R,
+        initial_state,
+        initial_covariance,
+        settings.h_left,
+        observed_data,
+    )
+
+    # times = range(len(settings.ts))
+    times = [5, 50]
+    for t in tqdm(times):
+        Plotter.plot_KF_states(
+            t,
+            states,
+            covariances,
+            observed_data,
+            settings,
+            show=True,
+            stations_shift=1,
+        )
+
+    indices = [0, 40, 50, 51]
+    # indices = np.arange(states.shape[0] - 1).tolist()
+    for i in tqdm(indices):
+        if i % 2 == 0:
+            aux = str(int(i / 2))
+            variable_name = "$h_{{" + aux + "}} (\mathrm{m})$"
+        else:
+            aux = str(int((i - 1) / 2))
+            variable_name = "$u_{{" + aux + "}}\ (\mathrm{m/s})$"
+        Plotter.plot_KF_time(
+            i,
+            states,
+            covariances,
+            observed_data,
+            settings,
+            variable_name,
+            show=True,
+            shift=1,
+        )
+
+
+def question10() -> None:
+    """"""
+
+    settings = Settings(add_noise=True)
+    settings.initialize()
+
+    # Remove one (Cadzand) station
+    n_stations = len(settings.names) - 1
+
+    # Construct standard system notation
+    tilde_A = settings.A
+    tilde_B = settings.B
+    A = bmat([[tilde_A, None], [None, 1]])
+    aux = np.zeros((tilde_B.shape[0], 1))
+    aux[0] = 1
+    B_rhs = bmat([[tilde_B, aux], [None, settings.alpha]])
+    n_state = A.shape[0]
+
+    C = csr_array((n_state, 1), dtype=np.int8)
+    C[0, 0] = 1
+    D = csr_array((n_state, 1), dtype=np.int8)
+    D[-1, 0] = 1
+
+    inv_A = inv(A)
+    M = inv_A @ B_rhs
+    B = inv_A @ C
+    G = inv_A @ D
+
+    H = csr_array((n_stations, n_state), dtype=np.int8)
+    aux = np.arange(n_stations)
+    H[aux, settings.ilocs_waterlevel[1:]] = 1
+    R = 1 * sp.eye(n_stations)
+    Q = settings.sigma_noise**2 * G @ G.T
+
+    # Create handles
+    _M = lambda _: M.toarray()
+    _B = lambda _: B.toarray()
+    _H = lambda _: H.toarray()
+    _Q = lambda _: Q.toarray()
+    _R = lambda _: R.toarray()
+
+    # Initial state
+    initial_state = 0 * np.ones((n_state, 1))
+    initial_covariance = np.eye(n_state)
+
+    # Load observations
+    (obs_times, obs_values) = time_series.read_series("waterlevel_vlissingen.txt")
+    obs_values = np.array(obs_values)
+
+    index_peak_storm = int(np.argmax(obs_values))
+    cut_index = index_peak_storm - 10
+    observed_data = np.zeros((len(settings.ilocs_waterlevel[1:]), len(obs_values)))
+    observed_data[0, :] = obs_values
+    (obs_times, obs_values) = time_series.read_series("waterlevel_terneuzen.txt")
+    observed_data[1, :] = obs_values
+    (obs_times, obs_values) = time_series.read_series("waterlevel_hansweert.txt")
+    observed_data[2, :] = obs_values
+    (obs_times, obs_values) = time_series.read_series("waterlevel_bath.txt")
+    observed_data[3, :] = obs_values
+
+    states, covariances = kalman_filter(
+        _M,
+        _B,
+        _H,
+        _Q,
+        _R,
+        initial_state,
+        initial_covariance,
+        settings.h_left[:cut_index],
+        observed_data[:, :cut_index],
+    )
+
+    # Forecast
+    n_x = M.shape[0]
+    forecast_times = obs_times[cut_index:]
+    state_forecast, _ = forward(
+        _M,
+        _B,
+        _H,
+        _Q,
+        _R,
+        states[:, -1].reshape((n_x, 1)),
+        settings.h_left[cut_index:],
+        len(forecast_times) - 1,
+        deterministic=True,
+    )
+
+    # times = range(len(settings.ts))
+    # times = [5, 50]
+    # for t in tqdm(times):
+    #     Plotter.plot_KF_states(
+    #         t,
+    #         states,
+    #         covariances,
+    #         observed_data,
+    #         settings,
+    #         show=True,
+    #         stations_shift=1,
+    #         forecast=(index_storm_peak, state_forecast),
+    #     )
+
+    indices = [0, 40, 50, 51]
+    # indices = np.arange(states.shape[0] - 1).tolist()
+    for i in tqdm(indices):
+        if i % 2 == 0:
+            aux = str(int(i / 2))
+            variable_name = "$h_{{" + aux + "}} (\mathrm{m})$"
+        else:
+            aux = str(int((i - 1) / 2))
+            variable_name = "$u_{{" + aux + "}}\ (\mathrm{m/s})$"
+        Plotter.plot_KF_time(
+            i,
+            states,
+            covariances,
+            observed_data,
+            settings,
+            variable_name,
+            show=True,
+            shift=1,
+            forecast=(cut_index, state_forecast),
+        )
+
+
 # main program
 if __name__ == "__main__":
     # question2()
@@ -431,3 +765,6 @@ if __name__ == "__main__":
     # question5()
     # question6()
     question7()
+    # question8()
+    # question9()
+    # question10()
