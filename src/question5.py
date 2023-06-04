@@ -57,7 +57,7 @@ def question5() -> None:
 
     # Initial state
     initial_state = 0 * np.ones((n_state, 1))
-    initial_covariance = 1 * np.eye(n_state)
+    initial_covariance = 0.1 * np.eye(n_state)
 
     # Load observations
     station_names = list(map(lambda s: s.lower(), settings.names))
@@ -82,13 +82,13 @@ def question5() -> None:
     states_real, _ = simulate_real(settings_real)
 
     times = range(len(settings.ts))
-    times = [5, 50]
+    times = [5, 50, 100]
     for t in tqdm(times):
         Plotter.plot_KF_states(
-            t, states, covariances, observed_data, settings, real=states_real, show=True
+            t, states, covariances, observed_data, settings, real=states_real
         )
 
-    indices = [0, 40, 50, 51]
+    indices = settings.ilocs
     # indices = np.arange(states.shape[0] - 1).tolist()
     for i in tqdm(indices):
         if i % 2 == 0:
@@ -105,5 +105,12 @@ def question5() -> None:
             settings,
             variable_name,
             real=states_real,
-            show=True,
         )
+
+    estimated_observations = states[settings.ilocs_waterlevel, :]
+    rmses, biases = time_series.get_statistics(
+        estimated_observations, observed_data, settings
+    )
+
+    output = np.array([biases, rmses]).T
+    np.savetxt("table_question5.csv", output, delimiter=",", fmt="%1.4f")

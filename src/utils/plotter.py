@@ -6,6 +6,7 @@ from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 import matplotlib.dates as mdates
 import numpy as np
+import pandas as pd
 
 from utils._typing import DataArray
 import utils.time_series as time_series
@@ -30,9 +31,9 @@ class Plotter:
     _folder: str = os.path.join(os.getcwd(), "figs")
     args: list[Any] = ["k-o"]
     kwargs: dict[str, Any] = {"markersize": 3}
-    figsize_standard: tuple[int, int] = (10, 5)
-    figsize_horizontal: tuple[int, int] = (20, 5)
-    figsize_vertical: tuple[int, int] = (10, 10)
+    figsize_standard: tuple[int, int] = (8, 5)
+    figsize_horizontal: tuple[int, int] = (16, 5)
+    figsize_vertical: tuple[int, int] = (8, 10)
     font_size: int = 18
     bands_alpha: float = 0.2
     h_label: str = "$h\ (\mathrm{m})$"
@@ -66,12 +67,33 @@ class Plotter:
             The axes.
         """
 
-        # Shrink current axis by 20%
-        box = ax.get_position()
-        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        ax.legend(
+            bbox_to_anchor=(0, 1.02, 1, 0.2),
+            loc="lower right",
+            ncol=3,
+        )
 
-        # Put a legend to the right of the current axis
-        ax.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+        # Bottom outside (may overlap)
+        # # Shrink current axis's height by 10% on the bottom
+        # box = ax.get_position()
+        # ax.set_position(
+        #     [box.x0, box.y0 + box.height * 0.1, box.width, box.height * 0.9]
+        # )
+
+        # # Put a legend below current axis
+        # ax.legend(
+        #     loc="upper center",
+        #     bbox_to_anchor=(0.5, -0.05),
+        #     ncol=5,
+        # )
+
+        # Right outside
+        # # Shrink current axis by 20%
+        # box = ax.get_position()
+        # ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+
+        # # Put a legend to the right of the current axis
+        # ax.legend(loc="center left", bbox_to_anchor=(1, 0.5))
 
     @classmethod
     def date_axis(cls, ax: Axes) -> None:
@@ -134,6 +156,7 @@ class Plotter:
         show: bool = False,
         shift: int = 0,
         forecast: tuple[int, np.ndarray] | None = None,
+        prefix: str = "",
     ) -> None:
         """It plots the estimated state vector after Kalman filtering at time t.
 
@@ -162,6 +185,8 @@ class Plotter:
             Default: 0
         forecast: tuple[int, numpy.ndarray] | None, optional
             The tuple of the cut index and the forecasted state. Default = None
+        prefix: str, optional
+            A prefix for filenames. Default: ""
         """
 
         cls.__clear__()
@@ -238,7 +263,7 @@ class Plotter:
         cls.date_axis(ax)
         cls.legend(ax)
 
-        name = f"series_{label}_at_{i}.pdf"
+        name = f"{prefix}_series_{label}_at_{i}.pdf"
         if show:
             plt.show()
         else:
@@ -256,6 +281,7 @@ class Plotter:
         show: bool = False,
         is_ensemble: bool = False,
         stations_shift: int = 0,
+        prefix: str = "",
     ) -> None:
         """It plots the estimated state vector after Kalman filtering at time t.
 
@@ -277,6 +303,8 @@ class Plotter:
             Whether to show the figures or not. Default: False
         is_ensemble: bool, optional
             If it corresponds to an ensemble Kalman filter. Default: False
+        prefix: str, optional
+            A prefix for filename. Default: ""
         """
 
         cls.__clear__()
@@ -314,7 +342,7 @@ class Plotter:
             cls.legend(axs[i])
             cls.grid(axs[i])
 
-        name = f"state_{label}_t_{t}.pdf"
+        name = f"{prefix}_state_{label}_t_{t}.pdf"
         fig.tight_layout(pad=2)
         if show:
             plt.show()
@@ -517,10 +545,11 @@ class Plotter:
             _, ax = plt.subplots(figsize=cls.figsize_standard)
             ax.plot(ts, series_data[i, :], "b-", label="Simulation")
 
-            ax.set_xlabel(cls.t_label)
             ntimes = min(len(ts), obs_data.shape[1])
             ax.plot(ts[0:ntimes], obs_data[i, 0:ntimes], "k-", label="Observation")
 
+            ax.set_xlabel(cls.t_label)
+            ax.set_ylabel(cls.h_label)
             cls.legend(ax)
             cls.grid(ax)
             cls.date_axis(ax)
@@ -689,6 +718,37 @@ class Plotter:
 
         cls.date_axis(axs[0])
         cls.date_axis(axs[1])
+
+        if show:
+            plt.show()
+        else:
+            plt.savefig(cls.add_folder(f"{filename}.pdf"), bbox_inches="tight")
+
+    @classmethod
+    def plot_densities(
+        cls,
+        stat_matrix: np.ndarray,
+        settings: Settings,
+        filename: str,
+        xlabel: str | None = None,
+        show=False,
+    ) -> None:
+        """"""
+
+        cls.__clear__()
+        cls.__setup_config__
+
+        _, ax = plt.subplots(ncols=1, nrows=1, figsize=cls.figsize_standard)
+
+        for i in range(len(settings.names)):
+            s = pd.Series(stat_matrix[i, :])
+            s.plot.kde(ax=ax, label=settings.names[i])
+
+        if xlabel is None:
+            xlabel = "Statistic"
+        ax.set_xlabel(xlabel)
+        cls.grid(ax)
+        cls.legend(ax)
 
         if show:
             plt.show()

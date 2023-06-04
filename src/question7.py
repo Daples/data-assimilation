@@ -75,39 +75,3 @@ def question7() -> None:
         real_observations,
         ensemble_size,
     )
-
-    times = range(len(settings.ts))
-    # times = [5, 50]
-    times = []
-    for t in tqdm(times):
-        Plotter.plot_KF_states(
-            t,
-            states,
-            covariances,
-            real_observations,
-            settings,
-            real=real_states,
-            is_ensemble=True,
-            show=True,
-        )
-
-    indices = [0, 40, 50, 51]
-    # indices = np.arange(states.shape[0] - 1).tolist()
-    for i in tqdm(indices):
-        if i % 2 == 0:
-            aux = str(int(i / 2))
-            variable_name = "$h_{{" + aux + "}} (\mathrm{m})$"
-        else:
-            aux = str(int((i - 1) / 2))
-            variable_name = "$u_{{" + aux + "}}\ (\mathrm{m/s})$"
-        Plotter.plot_KF_time(
-            i,
-            states,
-            covariances,
-            real_observations,
-            settings,
-            variable_name,
-            real=real_states,
-            is_ensemble=True,
-            show=True,
-        )

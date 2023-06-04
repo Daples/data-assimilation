@@ -2,6 +2,8 @@ import numpy as np
 import utils.time_series as time_series
 
 from utils.plotter import Plotter
+import matplotlib.pyplot as plt
+import pandas as pd
 from utils.simulate import simulate_real
 
 from utils.settings import Settings
@@ -50,4 +52,11 @@ def question4() -> None:
     spreads_h = spreads[:5]
     spreads_u = spreads[5:]
 
-    Plotter.plot_spreads(x, spreads_h, spreads_u, "test.pdf", settings.names)  # type: ignore
+    Plotter.plot_spreads(x, spreads_h, spreads_u, "spreads", settings.names)  # type: ignore
+
+    # Histograms
+    rmses_matrix, biases_matrix = time_series.get_statistics_ensemble(
+        ensembles, observed_data, settings
+    )
+    Plotter.plot_densities(rmses_matrix, settings, "rmses_ensemble", xlabel="RMSE")
+    Plotter.plot_densities(biases_matrix, settings, "biases_ensemble", xlabel="Bias")

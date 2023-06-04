@@ -87,7 +87,7 @@ def kalman_filter(
     state = initial_state
     covariance = initial_covariance
 
-    obs_time = measurements.shape[1]
+    obs_time = measurements.shape[1] - 1
     estimated_states = np.zeros((num_states, obs_time))
     estimated_covariances = []
 

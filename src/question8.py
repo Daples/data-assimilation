@@ -9,7 +9,7 @@ from utils.simulate import simulate_real
 from tqdm import tqdm
 
 from utils.settings import Settings
-from filtering.kalman import kalman_filter
+from filtering.ensemble_kalman import ensemble_kalman_filter
 
 hours_to_seconds = 60.0 * 60.0
 days_to_seconds = 24.0 * 60.0 * 60.0
@@ -19,11 +19,11 @@ storm_file = lambda s: f"waterlevel_{s}.txt"
 
 
 def question8() -> None:
-    """"""
-
-    settings = Settings(add_noise=True)
+    settings = Settings(add_noise=False)
     settings.initialize()
     n_stations = len(settings.names)
+    _, real_observations = simulate_real(settings)
+    real_observations = real_observations[:5, :]
 
     # Construct standard system notation
     tilde_A = settings.A
@@ -47,7 +47,7 @@ def question8() -> None:
     H = csr_array((n_stations, n_state), dtype=np.int8)
     aux = np.arange(n_stations)
     H[aux, settings.ilocs_waterlevel] = 1
-    R = 5 * sp.eye(n_stations)
+    R = 0.1 * sp.eye(n_stations)
     Q = settings.sigma_noise**2 * G @ G.T
 
     # Create handles
@@ -58,15 +58,11 @@ def question8() -> None:
     _R = lambda _: R.toarray()
 
     # Initial state
-    initial_state = 2 * np.ones((n_state, 1))
-    initial_covariance = np.eye(n_state)
+    initial_state = 1 * np.ones((n_state, 1))
+    initial_covariance = 0.01 * np.eye(n_state)
 
-    # Load observations
-    station_names = list(map(lambda s: s.lower(), settings.names))
-    datasets = list(map(data_file, station_names))
-    _, observed_data = time_series.read_datasets(datasets)
-
-    states, covariances = kalman_filter(
+    ensemble_size = 50
+    states, covariances = ensemble_kalman_filter(
         _M,
         _B,
         _H,
@@ -75,29 +71,24 @@ def question8() -> None:
         initial_state,
         initial_covariance,
         settings.h_left,
-        observed_data,
+        real_observations,
+        ensemble_size,
     )
 
-    # Simulations without noise ("truth"?)
-    settings_real = Settings(add_noise=False)
-    settings_real.initialize()
-    states_real, _ = simulate_real(settings_real)
-
-    # times = range(len(settings.ts))
-    times = [5, 50]
+    times = [5, 50, 100]
+    prefix = "pert_twin"
     for t in tqdm(times):
         Plotter.plot_KF_states(
             t,
             states,
             covariances,
-            observed_data,
+            real_observations,
             settings,
-            real=states_real,
-            show=True,
+            is_ensemble=True,
+            prefix=prefix,
         )
 
-    indices = [0, 40, 50, 51]
-    # indices = np.arange(states.shape[0] - 1).tolist()
+    indices = settings.ilocs
     for i in tqdm(indices):
         if i % 2 == 0:
             aux = str(int(i / 2))
@@ -109,9 +100,17 @@ def question8() -> None:
             i,
             states,
             covariances,
-            observed_data,
+            real_observations,
             settings,
             variable_name,
-            real=states_real,
-            show=True,
+            is_ensemble=True,
+            prefix=prefix,
         )
+
+    estimated_observations = states[settings.ilocs_waterlevel, :]
+    rmses, biases = time_series.get_statistics(
+        estimated_observations, real_observations, settings
+    )
+
+    output = np.array([biases, rmses]).T
+    np.savetxt("table_question8.csv", output, delimiter=",", fmt="%1.4f")

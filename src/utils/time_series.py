@@ -80,7 +80,10 @@ def read_datasets(files: list[str]) -> tuple[list[Any], np.ndarray]:
 
 
 def get_statistics(
-    estimations: np.ndarray, observations: np.ndarray, settings: Settings
+    estimations: np.ndarray,
+    observations: np.ndarray,
+    settings: Settings,
+    init_n: int = 0,
 ) -> tuple[list[float], ...]:
     """It calculates the statistics between estimations and real observations.
 
@@ -90,7 +93,10 @@ def get_statistics(
         The estimated values.
     observations: numpy.ndarray
         The observed (reference) data. Usually the real data.
-
+    settings: utils.settings.Settings
+        The settings object.
+    init_n: int, optional
+        The starting index for the stations.
 
     Returns
     -------
@@ -100,7 +106,7 @@ def get_statistics(
 
     rmses = []
     biases = []
-    for i, _ in enumerate(settings.loc_names):
+    for i, _ in enumerate(settings.loc_names[init_n:]):
         observation = observations[i, 1:]
         estimation = estimations[i, :]
         rmse = np.sqrt(np.square(np.subtract(observation, estimation)).mean())
@@ -109,6 +115,24 @@ def get_statistics(
         biases.append(bias)
 
     return rmses, biases
+
+
+def get_statistics_ensemble(
+    ensembles: list[np.ndarray], observed_data: np.ndarray, settings: Settings
+) -> tuple[np.ndarray, ...]:
+    """"""
+
+    n_stations = len(settings.names)
+    N = len(ensembles)
+    biases_matrix = np.zeros((n_stations, N))
+    rmses_matrix = np.zeros_like(biases_matrix)
+
+    for i, ensemble in enumerate(ensembles):
+        rmses, biases = time_series.get_statistics(ensemble, observed_data, settings)
+        rmses_matrix[:, i] = rmses
+        biases_matrix[:, i] = biases
+
+    return rmses_matrix, biases_matrix
 
 
 def get_ensemble_spread(

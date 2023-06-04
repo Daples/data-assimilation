@@ -30,11 +30,11 @@ from question10 import question10
 
 if __name__ == "__main__":
     # question1()
-    question3()
+    # question3()
     # question4()
     # question5()
     # question6()
     # question7()
     # question8()
     # question9()
-    # question10()
+    question10()

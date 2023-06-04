@@ -49,7 +49,7 @@ def question10() -> None:
     H = csr_array((n_stations, n_state), dtype=np.int8)
     aux = np.arange(n_stations)
     H[aux, settings.ilocs_waterlevel[1:]] = 1
-    R = 1 * sp.eye(n_stations)
+    R = 0.1 * sp.eye(n_stations)
     Q = settings.sigma_noise**2 * G @ G.T
 
     # Create handles
@@ -61,7 +61,7 @@ def question10() -> None:
 
     # Initial state
     initial_state = 0 * np.ones((n_state, 1))
-    initial_covariance = np.eye(n_state)
+    initial_covariance = 0.01 * np.eye(n_state)
 
     # Load observations
     station_names = list(map(lambda s: s.lower(), settings.names[1:]))
@@ -113,8 +113,7 @@ def question10() -> None:
     #         forecast=(index_storm_peak, state_forecast),
     #     )
 
-    indices = [0, 40, 50, 51]
-    # indices = np.arange(states.shape[0] - 1).tolist()
+    indices = settings.ilocs_waterlevel
     for i in tqdm(indices):
         if i % 2 == 0:
             aux = str(int(i / 2))
@@ -132,4 +131,5 @@ def question10() -> None:
             show=True,
             shift=1,
             forecast=(cut_index, state_forecast),
+            prefix="forecast",
         )

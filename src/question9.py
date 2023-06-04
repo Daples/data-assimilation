@@ -48,7 +48,7 @@ def question9() -> None:
     H = csr_array((n_stations, n_state), dtype=np.int8)
     aux = np.arange(n_stations)
     H[aux, settings.ilocs_waterlevel[1:]] = 1
-    R = 5 * sp.eye(n_stations)
+    R = 0.1 * sp.eye(n_stations)
     Q = settings.sigma_noise**2 * G @ G.T
 
     # Create handles
@@ -60,11 +60,11 @@ def question9() -> None:
 
     # Initial state
     initial_state = 0 * np.ones((n_state, 1))
-    initial_covariance = np.eye(n_state)
+    initial_covariance = 0.01 * np.eye(n_state)
 
     # Load observations
-    station_names = list(map(lambda s: s.lower(), settings.names))
-    datasets = list(map(data_file, station_names))
+    station_names = list(map(lambda s: s.lower(), settings.names[1:]))
+    datasets = list(map(storm_file, station_names))
     _, observed_data = time_series.read_datasets(datasets)
 
     states, covariances = kalman_filter(
@@ -79,8 +79,7 @@ def question9() -> None:
         observed_data,
     )
 
-    # times = range(len(settings.ts))
-    times = [5, 50]
+    times = [5, 50, 100]
     for t in tqdm(times):
         Plotter.plot_KF_states(
             t,
@@ -88,12 +87,11 @@ def question9() -> None:
             covariances,
             observed_data,
             settings,
-            show=True,
             stations_shift=1,
+            prefix="storm_",
         )
 
-    indices = [0, 40, 50, 51]
-    # indices = np.arange(states.shape[0] - 1).tolist()
+    indices = settings.ilocs
     for i in tqdm(indices):
         if i % 2 == 0:
             aux = str(int(i / 2))
@@ -108,6 +106,14 @@ def question9() -> None:
             observed_data,
             settings,
             variable_name,
-            show=True,
             shift=1,
+            prefix="storm_",
         )
+
+    estimated_observations = states[settings.ilocs_waterlevel, :]
+    rmses, biases = time_series.get_statistics(
+        estimated_observations, observed_data, settings, init_n=1
+    )
+
+    output = np.array([biases, rmses]).T
+    np.savetxt("table_question9.csv", output, delimiter=",", fmt="%1.4f")
