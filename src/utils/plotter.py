@@ -29,11 +29,11 @@ class Plotter:
 
     _folder: str = os.path.join(os.getcwd(), "figs")
     args: list[Any] = ["k-o"]
-    kwargs: dict[str, Any] = {"markevery": [0, -1], "markersize": 2}
+    kwargs: dict[str, Any] = {"markersize": 3}
     figsize_standard: tuple[int, int] = (10, 5)
     figsize_horizontal: tuple[int, int] = (20, 5)
     figsize_vertical: tuple[int, int] = (10, 10)
-    font_size: int = 16
+    font_size: int = 18
     bands_alpha: float = 0.2
     h_label: str = "$h\ (\mathrm{m})$"
     u_label: str = "$u\ (\mathrm{m})$"
@@ -402,6 +402,7 @@ class Plotter:
         ax.set_ylabel(cls.c_label)
         cls.grid(ax)
         cls.date_axis(ax)
+        cls.legend(ax)
 
         plt.savefig(cls.add_folder("velocities.pdf"), bbox_inches="tight")
 
@@ -474,17 +475,29 @@ class Plotter:
         for i, t in enumerate(times):
             level = series[::2, t]
             idx_last_max = argmaxs[i]
-            ax.plot(settings.x_h_km, level, zorder=1)
+
+            kwargs = {}
+            if i == 0:
+                kwargs |= {"label": "Peaks"}
             ax.scatter(
                 settings.x_h_km[idx_last_max],
                 level[idx_last_max],
-                s=10,
+                s=15,
                 c="k",
                 zorder=3,
+                **kwargs,
+            )
+
+            ax.plot(
+                settings.x_h_km,
+                level,
+                zorder=1,
+                # label=f"$t={t}\Delta t\ (\mathrm{{s}})$",
             )
         ax.set_xlabel(cls.x_label)
         ax.set_ylabel(cls.h_label)
         cls.grid(ax)
+        cls.legend(ax)
 
         plt.savefig(cls.add_folder("argmaxs.pdf"), bbox_inches="tight")
 
