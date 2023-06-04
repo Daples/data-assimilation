@@ -34,6 +34,7 @@ class Plotter:
     figsize_horizontal: tuple[int, int] = (20, 5)
     figsize_vertical: tuple[int, int] = (10, 10)
     font_size: int = 16
+    bands_alpha: float = 0.2
     h_label: str = "$h\ (\mathrm{m})$"
     u_label: str = "$u\ (\mathrm{m})$"
     x_label: str = "$x\ (\mathrm{km})$"
@@ -44,6 +45,7 @@ class Plotter:
     def __clear__() -> None:
         """It clears the graphic objects."""
 
+        plt.close("all")
         plt.cla()
         plt.clf()
 
@@ -202,7 +204,7 @@ class Plotter:
             ax.plot(x_forecast, y_forecast, "k", label="Forecast")
             x_estimation = x[:cut_index]
 
-        ax.fill_between(x_estimation, (y - s), (y + s), color="b", alpha=0.2, zorder=-1)  # type: ignore
+        ax.fill_between(x_estimation, (y - s), (y + s), color="b", alpha=cls.bands_alpha, zorder=-1)  # type: ignore
         label = "KF"
         if is_ensemble:
             label = "EnKF"
@@ -254,7 +256,6 @@ class Plotter:
         show: bool = False,
         is_ensemble: bool = False,
         stations_shift: int = 0,
-        forecast: tuple[int, np.ndarray] | None = None,
     ) -> None:
         """It plots the estimated state vector after Kalman filtering at time t.
 
@@ -276,11 +277,6 @@ class Plotter:
             Whether to show the figures or not. Default: False
         is_ensemble: bool, optional
             If it corresponds to an ensemble Kalman filter. Default: False
-        stations_shift: int, optional
-            It shifts the stations if needed (exlude the first `shift` stations).
-            Default: 0
-        forecast: tuple[int, numpy.ndarray] | None, optional
-            The tuple of the cut index and the forecasted state. Default = None
         """
 
         cls.__clear__()
@@ -297,34 +293,18 @@ class Plotter:
         if is_ensemble:
             label = "EnKF"
         for i, x in enumerate(xs):
-            # Plot estimation/forecast
-            if forecast is None:
-                s = stds[i:-1:2]
-                y = estimations[i:-1:2, t]
-                axs[i].plot(x, y, "b", label=label)
-
-                # Plot confidence bands
-                axs[i].fill_between(x, (y - s), (y + s), color="b", alpha=0.2)
-            else:
-                x_estimation = x[:cut_index]
-                x_forecast = x[:cut_index]
-                y = estimations[i:cut_index:2, t]
-                axs[i].plot(x_estimation, y, "b", label=label)
-                axs[i].plot(x_forecast, forecast_state, "r", label="Forecast")
-
-            # Plot observations
+            s = stds[i:-1:2]
+            y = estimations[i:-1:2, t]
+            axs[i].plot(x, y, "b", label=label)
             if i == 0:
                 axs[i].scatter(
                     settings.xlocs_waterlevel[stations_shift:] / 1000,
                     observations[:, t],
-                    c="r",
-                    s=10,
-                    marker="o",
+                    c="b",
+                    marker="x",
                     label="Observations",
-                    zorder=3,
                 )
-
-            # Plot reference solution (real/deterministic solution)
+            axs[i].fill_between(x, (y - s), (y + s), color="b", alpha=0.2)
             if real is not None:
                 y = cast(np.ndarray, real)[i::2, t]
                 axs[i].plot(x, y, "k", label="Deterministic", alpha=0.6)
@@ -551,7 +531,9 @@ class Plotter:
             The list of ensemble simulations.
         """
 
+        cls.__clear__()
         cls.__setup_config__()
+
         ensembles_transformed = list(DataHandler.__cast_array__(*ensembles))
         settings = settings_noise[0]
 
@@ -584,3 +566,118 @@ class Plotter:
             plt.savefig(
                 cls.add_folder(f"ensembles_{station_name}.pdf"), bbox_inches="tight"
             )
+
+    @classmethod
+    def plot_bands(
+        cls,
+        x: DataArray,
+        y: DataArray,
+        s: DataArray,
+        filename: str,
+        real: DataArray | None = None,
+        xlabel: str | None = None,
+        ylabel: str | None = None,
+        show: bool = False,
+    ) -> None:
+        """"""
+
+        x, y, s = DataHandler.__cast_array__(x, y, s)
+        if real is not None:
+            real = DataHandler.__cast_array__(real)[0]
+
+        cls.__clear__()
+        cls.__setup_config__()
+
+        _, ax = plt.subplots(ncols=1, nrows=1, figsize=cls.figsize_standard)
+        ax.plot(x, y, "b", label="Mean")
+        ax.fill_between(
+            x, y - s, y + s, label="Spread", color="b", alpha=cls.bands_alpha  # type: ignore
+        )
+
+        if real is not None:
+            ax.plot(
+                x,
+                real,
+                "o",
+                markevery=1,
+                markersize=2,
+                color="red",
+                linewidth=1,
+                label="Observations",
+                zorder=2,
+            )
+
+        if xlabel is None:
+            xlabel = cls.t_label
+        ax.set_xlabel(xlabel)
+        if ylabel is None:
+            ylabel = "Ensemble spread"
+        ax.set_ylabel(ylabel)
+
+        cls.grid(ax)
+        cls.legend(ax)
+        cls.date_axis(ax)
+
+        if show:
+            plt.show()
+        else:
+            plt.savefig(cls.add_folder(f"{filename}.pdf"), bbox_inches="tight")
+
+    @classmethod
+    def plot_spreads(
+        cls,
+        x: DataArray,
+        spreads_h: list[DataArray],
+        spreads_u: list[DataArray],
+        filename: str,
+        labels: list[str],
+        xlabel: str | None = None,
+        ylabel: str | None = None,
+        show: bool = False,
+    ) -> None:
+        """"""
+
+        x = DataHandler.__cast_array__(x)[0]
+
+        cls.__clear__()
+        cls.__setup_config__()
+
+        _, axs = plt.subplots(ncols=2, nrows=1, figsize=cls.figsize_horizontal)
+
+        for i, s_h in enumerate(spreads_h):
+            s_h = DataHandler.__cast_array__(s_h)[0]
+            axs[0].plot(x, s_h, label=labels[i])
+
+            if xlabel is None:
+                xlabel = cls.t_label
+            if ylabel is None:
+                ylabel = "Ensemble spread"
+
+            axs[0].set_xlabel(xlabel)
+            axs[0].set_ylabel(ylabel + f" {cls.h_label}")
+
+        for i, s_u in enumerate(spreads_u):
+            s_u = DataHandler.__cast_array__(s_u)[0]
+            axs[1].plot(x, s_u, label=labels[i])
+
+            if xlabel is None:
+                xlabel = cls.t_label
+            if ylabel is None:
+                ylabel = "Ensemble spread"
+
+            axs[1].set_xlabel(xlabel)
+            axs[1].set_ylabel(ylabel + f" {cls.u_label}")
+
+        cls.grid(axs[0])
+        cls.grid(axs[1])
+
+        cls.legend(axs[0])
+        cls.legend(axs[1])
+
+        cls.date_axis(axs[0])
+        cls.date_axis(axs[1])
+
+        if show:
+            plt.show()
+        else:
+            plt.savefig(cls.add_folder(f"{filename}.pdf"), bbox_inches="tight")

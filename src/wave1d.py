@@ -24,6 +24,7 @@ from scipy.sparse import bmat, csr_array
 from scipy.signal import argrelmax
 import utils.time_series as time_series
 import scipy.sparse as sp
+import matplotlib.pyplot as plt
 
 from utils.plotter import Plotter
 from utils.simulate import simulate_real, forward
@@ -31,14 +32,16 @@ from tqdm import tqdm
 
 from utils.settings import Settings
 from filtering.kalman import kalman_filter
-from filtering.ensemble_kalman import ensemble_kalman_filter, ensemble_kalman_filter_st
+from filtering.ensemble_kalman import ensemble_kalman_filter
 
 hours_to_seconds = 60.0 * 60.0
 days_to_seconds = 24.0 * 60.0 * 60.0
 figs_folder = "./figs"
+data_file = lambda s: f"tide_{s}.txt"
+storm_file = lambda s: f"waterlevel_{s}.txt"
 
 
-def question2() -> None:
+def question1() -> None:
     # for plots
     settings = Settings(damping_scale=0)
     complete_series, _ = simulate_real(settings, plot=True, prefix="state_no_damping_t")
@@ -70,33 +73,19 @@ def question2() -> None:
 
 def question3() -> None:
     settings = Settings()
-    _, series_data = simulate_real(settings, plot=False, prefix="state_t")
+    _, simulated_observations = simulate_real(settings, plot=False, prefix="state_t")
 
     # Load observations
-    (obs_times, obs_values) = time_series.read_series("tide_cadzand.txt")
-    observed_data = np.zeros((len(settings.ilocs), len(obs_times)))
-    observed_data[0, :] = obs_values[:]
-    (obs_times, obs_values) = time_series.read_series("tide_vlissingen.txt")
-    observed_data[1, :] = obs_values[:]
-    (obs_times, obs_values) = time_series.read_series("tide_terneuzen.txt")
-    observed_data[2, :] = obs_values[:]
-    (obs_times, obs_values) = time_series.read_series("tide_hansweert.txt")
-    observed_data[3, :] = obs_values[:]
-    (obs_times, obs_values) = time_series.read_series("tide_bath.txt")
-    observed_data[4, :] = obs_values[:]
+    station_names = list(map(lambda s: s.lower(), settings.names))
+    datasets = list(map(data_file, station_names))
+    _, observed_data = time_series.read_datasets(datasets)
 
-    Plotter.plot_series(settings.times, series_data, settings, observed_data)
+    Plotter.plot_series(settings.times, simulated_observations, settings, observed_data)
 
     # Question 3
-    rmses = []
-    biases = []
-    for i, _ in enumerate(settings.loc_names):
-        observations = observed_data[i, 1:]
-        estimations = series_data[i, :]
-        rmse = np.sqrt(np.square(np.subtract(observations, estimations)).mean())
-        bias = np.mean(estimations - observations)
-        rmses.append(rmse)
-        biases.append(bias)
+    rmses, biases = time_series.get_statistics(
+        simulated_observations, observed_data, settings
+    )
 
     # Organize as [hs; us]
     rmses = rmses[::2] + rmses[1::2]
@@ -119,6 +108,30 @@ def question4() -> None:
         list_settings.append(settings)
 
     Plotter.plot_ensemble(list_settings, ensembles)
+
+    # Read observations
+    settings = list_settings[0]
+    station_names = list(map(lambda s: s.lower(), settings.names))
+    datasets = list(map(data_file, station_names))
+    _, observed_data = time_series.read_datasets(datasets)
+
+    # Spread
+    stats_stations = time_series.get_ensemble_spread(ensembles)
+
+    x = settings.times
+    for i, stats in enumerate(stats_stations):
+        kwargs = {}
+        if i < 5:
+            kwargs |= {"real": observed_data[i, 1:]}
+        Plotter.plot_bands(
+            x, stats[0, :], stats[1, :], f"ensembles_stats_{i}.pdf", **kwargs, show=True
+        )
+
+    spreads = list(map(lambda x: x[1, :], stats_stations))
+    spreads_h = spreads[:5]
+    spreads_u = spreads[5:]
+
+    Plotter.plot_spreads(x, spreads_h, spreads_u, "test.pdf", settings.names, show=True)  # type: ignore
 
 
 def question5() -> None:
@@ -163,17 +176,9 @@ def question5() -> None:
     initial_covariance = 1 * np.eye(n_state)
 
     # Load observations
-    (obs_times, obs_values) = time_series.read_series("tide_cadzand.txt")
-    observed_data = np.zeros((len(settings.ilocs_waterlevel), len(obs_times)))
-    observed_data[0, :] = obs_values[:]
-    (obs_times, obs_values) = time_series.read_series("tide_vlissingen.txt")
-    observed_data[1, :] = obs_values[:]
-    (obs_times, obs_values) = time_series.read_series("tide_terneuzen.txt")
-    observed_data[2, :] = obs_values[:]
-    (obs_times, obs_values) = time_series.read_series("tide_hansweert.txt")
-    observed_data[3, :] = obs_values[:]
-    (obs_times, obs_values) = time_series.read_series("tide_bath.txt")
-    observed_data[4, :] = obs_values[:]
+    station_names = list(map(lambda s: s.lower(), settings.names))
+    datasets = list(map(data_file, station_names))
+    _, observed_data = time_series.read_datasets(datasets)
 
     states, covariances = kalman_filter(
         _M,
@@ -262,17 +267,9 @@ def question6() -> None:
     initial_covariance = np.eye(n_state)
 
     # Load observations
-    (obs_times, obs_values) = time_series.read_series("tide_cadzand.txt")
-    observed_data = np.zeros((len(settings.ilocs_waterlevel), len(obs_times)))
-    observed_data[0, :] = obs_values[:]
-    (obs_times, obs_values) = time_series.read_series("tide_vlissingen.txt")
-    observed_data[1, :] = obs_values[:]
-    (obs_times, obs_values) = time_series.read_series("tide_terneuzen.txt")
-    observed_data[2, :] = obs_values[:]
-    (obs_times, obs_values) = time_series.read_series("tide_hansweert.txt")
-    observed_data[3, :] = obs_values[:]
-    (obs_times, obs_values) = time_series.read_series("tide_bath.txt")
-    observed_data[4, :] = obs_values[:]
+    station_names = list(map(lambda s: s.lower(), settings.names))
+    datasets = list(map(data_file, station_names))
+    _, observed_data = time_series.read_datasets(datasets)
 
     ensemble_size = 50
     states, covariances = ensemble_kalman_filter(
@@ -360,7 +357,7 @@ def question7() -> None:
     H = csr_array((n_stations, n_state), dtype=np.int8)
     aux = np.arange(n_stations)
     H[aux, settings.ilocs_waterlevel] = 1
-    R = 0.5 * sp.eye(n_stations, format="csr")
+    R = 2 * sp.eye(n_stations, format="csr")
     Q = settings.sigma_noise**2 * G @ G.T
 
     # Create handles
@@ -374,7 +371,7 @@ def question7() -> None:
     initial_state = 0 * np.ones((n_state, 1))
     initial_covariance = 0.01 * np.eye(n_state)
 
-    ensemble_size = 500
+    ensemble_size = 50
     states, covariances = ensemble_kalman_filter(
         _M,
         _B,
@@ -469,17 +466,9 @@ def question8() -> None:
     initial_covariance = np.eye(n_state)
 
     # Load observations
-    (obs_times, obs_values) = time_series.read_series("tide_cadzand.txt")
-    observed_data = np.zeros((len(settings.ilocs_waterlevel), len(obs_times)))
-    observed_data[0, :] = obs_values[:]
-    (obs_times, obs_values) = time_series.read_series("tide_vlissingen.txt")
-    observed_data[1, :] = obs_values[:]
-    (obs_times, obs_values) = time_series.read_series("tide_terneuzen.txt")
-    observed_data[2, :] = obs_values[:]
-    (obs_times, obs_values) = time_series.read_series("tide_hansweert.txt")
-    observed_data[3, :] = obs_values[:]
-    (obs_times, obs_values) = time_series.read_series("tide_bath.txt")
-    observed_data[4, :] = obs_values[:]
+    station_names = list(map(lambda s: s.lower(), settings.names))
+    datasets = list(map(data_file, station_names))
+    _, observed_data = time_series.read_datasets(datasets)
 
     states, covariances = kalman_filter(
         _M,
@@ -578,15 +567,9 @@ def question9() -> None:
     initial_covariance = np.eye(n_state)
 
     # Load observations
-    (obs_times, obs_values) = time_series.read_series("waterlevel_vlissingen.txt")
-    observed_data = np.zeros((len(settings.ilocs_waterlevel[1:]), len(obs_times)))
-    observed_data[0, :] = obs_values[:]
-    (obs_times, obs_values) = time_series.read_series("waterlevel_terneuzen.txt")
-    observed_data[1, :] = obs_values[:]
-    (obs_times, obs_values) = time_series.read_series("waterlevel_hansweert.txt")
-    observed_data[2, :] = obs_values[:]
-    (obs_times, obs_values) = time_series.read_series("waterlevel_bath.txt")
-    observed_data[3, :] = obs_values[:]
+    station_names = list(map(lambda s: s.lower(), settings.names))
+    datasets = list(map(data_file, station_names))
+    _, observed_data = time_series.read_datasets(datasets)
 
     states, covariances = kalman_filter(
         _M,
@@ -680,19 +663,13 @@ def question10() -> None:
     initial_covariance = np.eye(n_state)
 
     # Load observations
-    (obs_times, obs_values) = time_series.read_series("waterlevel_vlissingen.txt")
-    obs_values = np.array(obs_values)
+    station_names = list(map(lambda s: s.lower(), settings.names[1:]))
+    datasets = list(map(storm_file, station_names))
+    obs_times, observed_data = time_series.read_datasets(datasets)
 
-    index_peak_storm = int(np.argmax(obs_values))
+    # Indexing storm peak and forecasting
+    index_peak_storm = int(np.argmax(observed_data[0, :]))
     cut_index = index_peak_storm - 10
-    observed_data = np.zeros((len(settings.ilocs_waterlevel[1:]), len(obs_values)))
-    observed_data[0, :] = obs_values
-    (obs_times, obs_values) = time_series.read_series("waterlevel_terneuzen.txt")
-    observed_data[1, :] = obs_values
-    (obs_times, obs_values) = time_series.read_series("waterlevel_hansweert.txt")
-    observed_data[2, :] = obs_values
-    (obs_times, obs_values) = time_series.read_series("waterlevel_bath.txt")
-    observed_data[3, :] = obs_values
 
     states, covariances = kalman_filter(
         _M,
@@ -759,12 +736,12 @@ def question10() -> None:
 
 # main program
 if __name__ == "__main__":
-    # question2()
+    # question1()
     # question3()
-    # question4()
+    question4()
     # question5()
     # question6()
-    question7()
+    # question7()
     # question8()
     # question9()
     # question10()
