@@ -224,12 +224,20 @@ class Plotter:
 
         x_estimation = x
         if forecast is not None:
-            x_forecast = x[cut_index:]
+            x_forecast = x[cut_index - 2 :]
             y_forecast = forecast_state[i, :]
             ax.plot(x_forecast, y_forecast, "k", label="Forecast")
             x_estimation = x[: cut_index - 1]
+            ax.axvline(x=x_forecast[0], color="k", linestyle="--", alpha=0.4)
 
-        ax.fill_between(x_estimation, (y - s), (y + s), color="b", alpha=cls.bands_alpha, zorder=-1)  # type: ignore
+        ax.fill_between(
+            x_estimation,
+            (y - s),  # type: ignore
+            (y + s),  # type: ignore
+            color="b",
+            alpha=cls.bands_alpha,
+            zorder=-1,
+        )
         label = "KF"
         if is_ensemble:
             label = "EnKF"

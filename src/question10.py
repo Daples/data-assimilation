@@ -18,7 +18,7 @@ data_file = lambda s: f"tide_{s}.txt"
 storm_file = lambda s: f"waterlevel_{s}.txt"
 
 
-def question10() -> None:
+def question10(lead_time: int | None = None) -> np.ndarray:
     """"""
 
     settings = Settings(add_noise=True)
@@ -69,8 +69,12 @@ def question10() -> None:
     obs_times, observed_data = time_series.read_datasets(datasets)
 
     # Indexing storm peak and forecasting
+    lt = 8
+    if lead_time is not None:
+        lt = lead_time
+    lt_conv = int(lt * 60 / 10)
     index_peak_storm = int(np.argmax(observed_data[0, :]))
-    cut_index = index_peak_storm - 10
+    cut_index = index_peak_storm - lt_conv
 
     states, covariances = kalman_filter(
         _M,
@@ -95,11 +99,10 @@ def question10() -> None:
         _R,
         states[:, -1].reshape((n_x, 1)),
         settings.h_left[cut_index:],
-        len(forecast_times) - 1,
+        len(forecast_times),
         deterministic=True,
     )
 
-    # times = range(len(settings.ts))
     # times = [5, 50]
     # for t in tqdm(times):
     #     Plotter.plot_KF_states(
@@ -113,7 +116,8 @@ def question10() -> None:
     #         forecast=(index_storm_peak, state_forecast),
     #     )
 
-    indices = settings.ilocs_waterlevel
+    indices = [settings.ilocs_waterlevel[1]]
+    # indices = settings.ilocs_waterlevel
     for i in tqdm(indices):
         if i % 2 == 0:
             aux = str(int(i / 2))
@@ -125,11 +129,19 @@ def question10() -> None:
             i,
             states,
             covariances,
-            observed_data,
+            observed_data[:, :-1],
             settings,
             variable_name,
-            show=True,
             shift=1,
             forecast=(cut_index, state_forecast),
-            prefix="forecast",
+            prefix=f"lt{lt}_forecast",
+            # prefix=f"forecast",
         )
+
+    estimated_observations = states[settings.ilocs_waterlevel, :]
+    rmses, biases = time_series.get_statistics(
+        estimated_observations, observed_data, settings, init_n=1
+    )
+
+    output = np.array([biases, rmses]).T
+    return output
