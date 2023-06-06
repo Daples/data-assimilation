@@ -25,7 +25,7 @@ def question3() -> None:
     Plotter.plot_series(settings.times, simulated_observations, settings, observed_data)
 
     # Question 3
-    rmses, biases = time_series.get_statistics(
+    rmses, biases, _ = time_series.get_statistics(
         simulated_observations, observed_data, settings
     )
 

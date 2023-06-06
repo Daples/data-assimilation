@@ -106,15 +106,18 @@ def get_statistics(
 
     rmses = []
     biases = []
+    maes = []
     for i, _ in enumerate(settings.loc_names[init_n:]):
         observation = observations[i, 1:]
         estimation = estimations[i, :]
         rmse = np.sqrt(np.square(np.subtract(observation, estimation)).mean())
         bias = np.mean(estimation - observation)
+        mae = np.mean(np.abs(estimation - observation))
         rmses.append(rmse)
         biases.append(bias)
+        maes.append(mae)
 
-    return rmses, biases
+    return rmses, biases, maes
 
 
 def get_statistics_ensemble(

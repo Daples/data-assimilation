@@ -18,6 +18,25 @@ data_file = lambda s: f"tide_{s}.txt"
 storm_file = lambda s: f"waterlevel_{s}.txt"
 
 
+def loopQ10():
+    settings = Settings(add_noise=True)
+
+    times = range(0, 25)
+
+    rmse_list = np.zeros([4, len(times)])
+    biases_list = np.zeros([4, len(times)])
+    mae_list = np.zeros([4, len(times)])
+
+    for i, lead_time in enumerate(times):
+        rmse, biase, mae = question10(lead_time=lead_time)
+        rmse_list[:, i] = rmse
+        biases_list[:, i] = biase
+        mae_list[:, i] = mae
+    Plotter.plot_lts(times, biases_list, settings, "biases", "Biases")
+    Plotter.plot_lts(times, rmse_list, settings, "rmses", "RMSE")
+    Plotter.plot_lts(times, mae_list, settings, "mae", "MAE")
+
+
 def question10(lead_time: int | None = None) -> np.ndarray:
     """"""
 
@@ -139,9 +158,8 @@ def question10(lead_time: int | None = None) -> np.ndarray:
         )
 
     estimated_observations = states[settings.ilocs_waterlevel, :]
-    rmses, biases = time_series.get_statistics(
-        estimated_observations, observed_data, settings, init_n=1
+    rmses, biases, maes = time_series.get_statistics(
+        state_forecast, observed_data[:, cut_index - 1 :], settings, init_n=1
     )
 
-    output = np.array([biases, rmses]).T
-    return output
+    return rmses, biases, maes

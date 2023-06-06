@@ -26,7 +26,7 @@ from question6 import question6
 from question7 import question7
 from question8 import question8
 from question9 import question9
-from question10 import question10
+from question10 import question10,loopQ10
 
 if __name__ == "__main__":
     # question1()
@@ -36,5 +36,6 @@ if __name__ == "__main__":
     # question6()
     # question7()
     # question8()
-    # question9()
-    question10()
+    question9()
+    #question10()
+    #loopQ10()

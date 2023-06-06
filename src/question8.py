@@ -108,7 +108,7 @@ def question8() -> None:
         )
 
     estimated_observations = states[settings.ilocs_waterlevel, :]
-    rmses, biases = time_series.get_statistics(
+    rmses, biases, _ = time_series.get_statistics(
         estimated_observations, real_observations, settings
     )
 

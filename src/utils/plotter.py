@@ -762,3 +762,36 @@ class Plotter:
             plt.show()
         else:
             plt.savefig(cls.add_folder(f"{filename}.pdf"), bbox_inches="tight")
+
+    @classmethod
+    def plot_lts(
+        cls,
+        times,
+        stat_matrix: np.ndarray,
+        settings: Settings,
+        filename: str,
+        ylabel: str,
+        show=False,
+    ) -> None:
+        """"""
+
+        cls.__clear__()
+        cls.__setup_config__
+
+        _, ax = plt.subplots(ncols=1, nrows=1, figsize=cls.figsize_standard)
+
+        for i in range(len(settings.names[1:])):
+            y = stat_matrix[i,:]
+            ax.plot(times,y,label=settings.names[i])
+
+        
+        ax.set_xlabel("Lead time (hours)")
+        ax.set_ylabel(ylabel)
+        cls.grid(ax)
+        cls.legend(ax)
+        
+
+        if show:
+            plt.show()
+        else:
+            plt.savefig(cls.add_folder(f"{filename}.pdf"), bbox_inches="tight")

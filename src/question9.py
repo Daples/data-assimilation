@@ -8,6 +8,7 @@ from utils.plotter import Plotter
 from tqdm import tqdm
 
 from utils.settings import Settings
+from utils.simulate import simulate_real
 from filtering.kalman import kalman_filter
 
 hours_to_seconds = 60.0 * 60.0
@@ -22,6 +23,9 @@ def question9() -> None:
 
     settings = Settings(add_noise=True)
     settings.initialize()
+
+    states_model, obs_model = simulate_real(settings) 
+
 
     # Remove one (Cadzand) station
     n_stations = len(settings.names) - 1
@@ -108,12 +112,20 @@ def question9() -> None:
             variable_name,
             shift=1,
             prefix="storm_",
+            real= states_model
         )
 
     estimated_observations = states[settings.ilocs_waterlevel, :]
-    rmses, biases = time_series.get_statistics(
+    rmses, biases, mae = time_series.get_statistics(
         estimated_observations, observed_data, settings, init_n=1
     )
 
     output = np.array([biases, rmses]).T
     np.savetxt("table_question9.csv", output, delimiter=",", fmt="%1.4f")
+
+    rmses, biases, mae = time_series.get_statistics(
+        obs_model, observed_data, settings, init_n=1
+    )
+
+    output = np.array([biases, rmses]).T
+    np.savetxt("table_question9_model.csv", output, delimiter=",", fmt="%1.4f")
