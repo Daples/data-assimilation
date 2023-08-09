@@ -18,7 +18,7 @@ data_file = lambda s: f"tide_{s}.txt"
 storm_file = lambda s: f"waterlevel_{s}.txt"
 
 
-def loopQ10():
+def loopQ10() -> None:
     settings = Settings(add_noise=True)
 
     times = range(0, 25)
@@ -37,7 +37,7 @@ def loopQ10():
     Plotter.plot_lts(times, mae_list, settings, "mae", "MAE")
 
 
-def question10(lead_time: int | None = None) -> np.ndarray:
+def question10(lead_time: int | None = None) -> tuple[list[float], ...]:
     """"""
 
     settings = Settings(add_noise=True)
