@@ -7,6 +7,7 @@ import scipy.sparse as sp
 from utils.plotter import Plotter
 from utils.simulate import simulate_real
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 from utils.settings import Settings
 from filtering.ensemble_kalman import ensemble_kalman_filter
@@ -75,37 +76,37 @@ def question8() -> None:
         ensemble_size,
     )
 
-    times = [5, 50, 100]
-    prefix = "pert_twin"
-    for t in tqdm(times):
-        Plotter.plot_KF_states(
-            t,
-            states,
-            covariances,
-            real_observations,
-            settings,
-            is_ensemble=True,
-            prefix=prefix,
-        )
+    # times = [5, 50, 100]
+    # prefix = "pert_twin"
+    # for t in tqdm(times):
+    #     Plotter.plot_KF_states(
+    #         t,
+    #         states,
+    #         covariances,
+    #         real_observations,
+    #         settings,
+    #         is_ensemble=True,
+    #         prefix=prefix,
+    #     )
 
-    indices = settings.ilocs
-    for i in tqdm(indices):
-        if i % 2 == 0:
-            aux = str(int(i / 2))
-            variable_name = "$h_{{" + aux + "}} (\mathrm{m})$"
-        else:
-            aux = str(int((i - 1) / 2))
-            variable_name = "$u_{{" + aux + "}}\ (\mathrm{m/s})$"
-        Plotter.plot_KF_time(
-            i,
-            states,
-            covariances,
-            real_observations,
-            settings,
-            variable_name,
-            is_ensemble=True,
-            prefix=prefix,
-        )
+    # indices = settings.ilocs
+    # for i in tqdm(indices):
+    #     if i % 2 == 0:
+    #         aux = str(int(i / 2))
+    #         variable_name = "$h_{{" + aux + "}} (\mathrm{m})$"
+    #     else:
+    #         aux = str(int((i - 1) / 2))
+    #         variable_name = "$u_{{" + aux + "}}\ (\mathrm{m/s})$"
+    #     Plotter.plot_KF_time(
+    #         i,
+    #         states,
+    #         covariances,
+    #         real_observations,
+    #         settings,
+    #         variable_name,
+    #         is_ensemble=True,
+    #         prefix=prefix,
+    #     )
 
     estimated_observations = states[settings.ilocs_waterlevel, :]
     rmses, biases, _ = time_series.get_statistics(
@@ -114,3 +115,24 @@ def question8() -> None:
 
     output = np.array([biases, rmses]).T
     np.savetxt("table_question8.csv", output, delimiter=",", fmt="%1.4f")
+
+    # kalman_gain = covariances[-1]
+    # eigs, _ = np.linalg.eig(A - kalman_gain @ H)
+    # plt.plot(np.real(eigs))
+    # plt.show()
+    # Plotter.__clear__()
+
+    # Residuals
+    Plotter.__setup_config__()
+    plt.figure(figsize=Plotter.figsize_standard)
+    residuals = estimated_observations - real_observations[:, :-1]
+
+    for i, station in enumerate(settings.names):
+        plt.plot(settings.times[:-1], residuals[i, :], linewidth=2, label=station)
+    plt.xlabel(Plotter.t_label)
+    ax = plt.gca()
+    plt.legend()
+    Plotter.date_axis(ax)
+    plt.ylabel("Residuals")
+    Plotter.grid(ax)
+    plt.savefig(Plotter.add_folder("residuals.pdf"), bbox_inches="tight")

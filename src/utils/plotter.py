@@ -782,7 +782,7 @@ class Plotter:
 
         for i in range(len(settings.names[1:])):
             y = stat_matrix[i,:]
-            ax.plot(times,y,label=settings.names[i])
+            ax.plot(times,y,label=settings.names[i+1])
 
         
         ax.set_xlabel("Lead time (hours)")

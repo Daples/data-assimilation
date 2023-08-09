@@ -129,3 +129,20 @@ def question9() -> None:
 
     output = np.array([biases, rmses]).T
     np.savetxt("table_question9_model.csv", output, delimiter=",", fmt="%1.4f")
+    print(obs_model)
+    print(observed_data.shape)
+    nb_sections = 4
+    for t in range(nb_sections):
+        end_min = np.min([(t+1)*obs_model.shape[1]//nb_sections,obs_model.shape[1] ])
+        sub_obs_model = obs_model[:, t*obs_model.shape[1]//nb_sections:end_min]
+        sub_obs_estime = estimated_observations[:, t*obs_model.shape[1]//nb_sections:end_min]
+        sub_obs_data = observed_data[:, t*obs_model.shape[1]//nb_sections:end_min+1]
+
+        rmses, biases, mae = time_series.get_statistics(
+        sub_obs_estime, sub_obs_data, settings, init_n=1
+        )
+        print(t)
+        print(rmses)
+        print(biases)
+        print(mae)
+
