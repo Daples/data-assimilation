@@ -58,4 +58,4 @@ def index_arrays(*arrays: Sequence | np.ndarray) -> tuple[Sequence | np.ndarray]
     """
 
     index = get_index(*arrays)
-    return tuple(map(lambda x: x[:index], arrays))
+    return tuple(map(lambda x: x[:index], arrays))  # type: ignore
